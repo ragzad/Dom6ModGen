@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% comment %} Use the nation's name in the title if it exists {% endcomment %}
+    <title>Nation Details: {% if nation %}{{ nation.name }}{% else %}Nation Not Found{% endif %}</title>
+</head>
+<body>
+
+    {% comment %} Check if the nation object was passed from the view {% endcomment %}
+    {% if nation %}
+        <h1>{{ nation.name }}</h1>
+
+        {% if nation.description %}
+            <h2>Description</h2>
+            <p>{{ nation.description|linebreaksbr }}</p> {% comment %} Use linebreaksbr filter for multi-line text {% endcomment %}
+        {% endif %}
+
+        {% if nation.creator %}
+            <p><strong>Creator:</strong> {{ nation.creator.username }}</p>
+        {% endif %}
+
+        <p><strong>Created At:</strong> {{ nation.created_at }}</p>
+        <p><strong>Last Updated:</strong> {{ nation.updated_at }}</p>
+
+        {% comment %} Add links for editing or deleting later {% endcomment %}
+
+    {% else %}
+        <h1>Nation Not Found</h1>
+        <p>The nation you requested could not be found.</p>
+    {% endif %}
+
+    <hr>
+    {% comment %} Add a link back to the main list page {% endcomment %}
+    <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
+
+</body>
+</html>

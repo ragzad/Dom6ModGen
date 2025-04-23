@@ -9,18 +9,21 @@
     <h1>List of Nations</h1>
 
     {% if nations %}
-        <ul>
-            {% for nation in nations %}
-                <li>
+    <ul>
+        {% for nation in nations %}
+            <li>
+                {% comment %} Make the name a link to the detail page {% endcomment %}
+                <a href="{% url 'nations:nation_detail' nation.pk %}">
                     {{ nation.name }}
-                </li>
-            {% empty %}
-                <li>No nations found. Add some via the admin interface!</li>
-            {% endfor %}
-        </ul>
-    {% else %}
-        <p>No nations list was provided.</p>
-    {% endif %}
+                </a>
+            </li>
+        {% empty %}
+            <li>No nations found. Add some via the admin interface!</li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No nations list was provided.</p>
+{% endif %}
 
 </body>
 </html>
