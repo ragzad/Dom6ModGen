@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create New Nation</title>
+</head>
+<body>
+    <h1>Create a New Nation</h1>
+
+    {% comment %} The form tag needs method="post" to send data to the server {% endcomment %}
+    <form method="post">
+        {% comment %} CRITICAL: csrf_token protects against cross-site request forgery attacks {% endcomment %}
+        {% csrf_token %}
+
+        {% comment %} Render the form fields. '.as_p' wraps each field in a <p> tag.
+                     Other options include .as_ul (for list items) or .as_table (for table rows),
+                     or looping through fields manually for full control. {% endcomment %}
+        {{ form.as_p }}
+
+        <button type="submit">Save Nation</button>
+    </form>
+
+    <hr>
+    <a href="{% url 'nations:nation_list' %}">Cancel and return to Nations List</a>
+
+</body>
+</html>
