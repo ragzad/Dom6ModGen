@@ -9,8 +9,9 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+import os
 from pathlib import Path
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -78,8 +79,12 @@ WSGI_APPLICATION = 'dom6modgen.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': config('DB_ENGINE'),             # Reads DB_ENGINE from .env
+        'NAME': config('DB_NAME'),                 # Reads DB_NAME from .env
+        'USER': config('DB_USER'),                 # Reads DB_USER from .env
+        'PASSWORD': config('DB_PASSWORD'),           # Reads DB_PASSWORD from .env
+        'HOST': config('DB_HOST', default='localhost'), # Reads DB_HOST, defaults to 'localhost' if not found
+        'PORT': config('DB_PORT', default='5432', cast=int), # Reads DB_PORT, defaults to '5432', converts to integer
     }
 }
 
