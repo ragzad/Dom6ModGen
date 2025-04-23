@@ -31,6 +31,17 @@
         <p>The nation you requested could not be found.</p>
     {% endif %}
 
+    
+
+    {% if nation %}
+    <h1>{{ nation.name }}</h1>
+    <a href="{% url 'nations:nation_update' nation.pk %}">Edit Nation</a> <hr>
+    <a href="{% url 'nations:nation_delete' nation.pk %}">Delete Nation</a> <hr>
+    <a href="{% url 'nations:nation_generate_dm' nation.pk %}">Generate Mod Code</a> <hr>
+    <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
+{% else %}
+
+   {% endif %}
     <hr>
     {% comment %} Add a link back to the main list page {% endcomment %}
     <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>

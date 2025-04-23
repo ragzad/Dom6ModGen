@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated DM Code for {{ nation.name }}</title>
+    <style>
+        pre { background-color: #f4f4f4; border: 1px solid #ddd; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
+        .error { color: red; font-weight: bold; }
+        .prompt { background-color: #eef; border: 1px dashed #ccf; padding: 10px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Generated Mod Code for: {{ nation.name }}</h1>
+
+    {% if error_message %}
+        <p class="error">{{ error_message }}</p>
+    {% endif %}
+
+    <h2>Generated Code:</h2>
+    <pre>{{ generated_code }}</pre>
+
+    <div class="prompt">
+        <h3>Prompt Sent to AI (for debugging):</h3>
+        <pre>{{ prompt_used }}</pre>
+    </div>
+
+    <hr>
+    <a href="{% url 'nations:nation_detail' nation.pk %}">Back to {{ nation.name }} Details</a><br>
+    <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
+
+</body>
+</html>
