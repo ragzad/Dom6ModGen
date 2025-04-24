@@ -1,0 +1,1 @@
+web: gunicorn dom6modgen.wsgi --log-file -
