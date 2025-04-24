@@ -1,2 +1,2 @@
-web: env PYTHONPATH=/app gunicorn dom6modgen.wsgi --log-file -
+web: gunicorn --chdir dom6modgen wsgi:application --log-file -
     
