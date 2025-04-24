@@ -1,1 +1,1 @@
-web: gunicorn --pythonpath /app dom6modgen.wsgi --log-file -
+web: gunicorn dom6modgen.dom6modgen.wsgi --log-file -
