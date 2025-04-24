@@ -92,13 +92,56 @@ def nation_generate_dm(request, pk):
 
         model = genai.GenerativeModel('gemini-1.5-flash')
 
-        prompt = f"""You are an expert Dominions 6 modder. Generate the Dominions 6 modding commands (.dm file format) for a new nation based ONLY on the following information. Output ONLY the raw .dm commands starting with #newnation and ending with #end. Do not include explanations or markdown formatting. Be creative but stay consistent with Dominions themes.
+        prompt = f"""You are an expert Dominions 6 modder creating a new nation mod file (.dm format).
+Your task is to generate ONLY the core nation definition block AND definitions for 3 basic starting units (1 Commander, 1 Infantry, 1 Ranged/Other).
 
-        Nation Name: {nation.name}
-        Nation Description: {nation.description}
+PART 1: NATION DEFINITION
+Generate the core nation definition block, starting exactly with '#newnation' and ending exactly with '#end'.
+Do not include '#selectnation', '#modname', '#description', or anything before '#newnation'. Do not include any comments or explanations outside the required mod commands.
+Base the generated commands on the provided Nation Name and Description. Be creative but consistent with Dominions themes.
 
-        Generate the necessary commands like #name, #descr, #epithet, #era (assume Middle Era - MA - unless description strongly implies otherwise), #summary, #flag (placeholder path), #startunit/s (suggest one basic national infantry and one national commander), #homerealm (suggest one), #startsite (suggest one basic site), #idealcold (suggest 0, 1, -1), #castleprod (suggest 0 or 1), #dominionstr (suggest 4 or 5) etc., based on the name and description provided."""
-        prompt_used = prompt
+Nation Name: {nation.name}
+Nation Description: {nation.description}
+
+Generate the following nation commands specifically, inferring reasonable values or placeholders:
+- #name "{nation.name}"
+- #epithet "..." (Suggest a suitable epithet)
+- #era <number> (Assume 2 for Middle Era - MA - unless description strongly implies Early Era=1 or Late Era=3)
+- #descr "{nation.description}"
+- #summary "..." (Write a brief 1-2 sentence summary)
+- #brief "..." (Write a very short, evocative phrase)
+- #flag "PLACEHOLDER/{nation.name}_flag.tga"
+- #color <r> <g> <b> (Suggest thematic RGB values 0.0-1.0)
+- #secondarycolor <r> <g> <b> (Suggest thematic RGB values 0.0-1.0)
+- #idealcold <number> (Suggest 0, or -1/1)
+- #startsite "..." (Suggest one simple, thematic starting site name)
+- #startcom "{nation.name} Commander" (Use this generic name)
+- #startunittype1 "{nation.name} Infantry" (Use this generic name)
+- #startunittype2 "{nation.name} Skirmisher" (Use this generic name)
+- #dominionstr <number> (Suggest 4 or 5)
+- #castleprod <number> (Suggest 0 or 1)
+(Include other common nation flags like #forestrec ONLY if strongly implied by the description)
+Ensure this block ends precisely with '#end'.
+
+PART 2: BASIC UNIT DEFINITIONS
+Immediately after the nation's '#end' command, generate three separate '#newmonster' blocks for the starting units mentioned above: '{nation.name} Commander', '{nation.name} Infantry', '{nation.name} Skirmisher'.
+For each '#newmonster' block:
+- Start it with '#newmonster'.
+- Include '#name "<Unit Name>"'.
+- Include '#descr "..."' (Suggest a brief description based on the unit name and nation description).
+- Include basic combat stats (#hp, #str, #att, #def, #prec, #mor, #mr - suggest plausible low-to-mid values for basic units/commander).
+- Include basic movement stats (#move, #ap - suggest standard values).
+- Include basic costs (#recruitcost, #resourcecost, #upkeep - suggest plausible low costs).
+- Suggest a basic #weapon (use name like 'Spear' or 'Short Sword' or 'Bow').
+- Suggest basic #armor (use name like 'Leather Armor' or 'Shield').
+- Add '#commander' for the commander unit, '#infantry' for the infantry, '#archer' or '#humanoid' for the skirmisher.
+- Add '#startunit' for all three.
+- End each block with '#end'.
+
+Output ONLY the raw .dm commands for both PART 1 and PART 2, with no extra text, comments, or formatting.
+"""
+        prompt_used = prompt # Store the prompt
+
 
         print("Attempting to call Gemini API...")
         response = model.generate_content(prompt)
