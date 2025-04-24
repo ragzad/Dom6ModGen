@@ -15,6 +15,7 @@ colorama==0.4.6
 coloredlogs==15.0.1
 Deprecated==1.2.18
 distro==1.9.0
+dj-database-url==2.3.0
 Django==5.2
 durationpy==0.9
 fastapi==0.115.9
@@ -120,5 +121,6 @@ uvicorn==0.34.2
 watchfiles==1.0.5
 websocket-client==1.8.0
 websockets==15.0.1
+whitenoise==6.9.0
 wrapt==1.17.2
 zipp==3.21.0
