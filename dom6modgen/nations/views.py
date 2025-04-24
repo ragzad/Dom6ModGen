@@ -1,54 +1,28 @@
 # nations/views.py
+# --- Keep standard imports ---
 from django.shortcuts import render, get_object_or_404, redirect
 from .models import Nation
 from .forms import NationForm
-# Imports needed for AI and RAG
+# --- Keep Gemini imports ---
 import google.generativeai as genai
 from decouple import config
 import os
-# Make sure these are installed: pip install chromadb sentence-transformers
-import chromadb
-from sentence_transformers import SentenceTransformer
 
-# --- Configuration Section ---
-DB_PATH = "C:/Users/Ethan/chroma_db_dom6" # IMPORTANT: Verify this is the correct path to your DB folder!
-COLLECTION_NAME = "dominions_data"
-EMBEDDING_MODEL_NAME = 'all-MiniLM-L6-v2' # Must match the model used to create the DB
-
-# Configure Gemini API Key
+# --- Keep Gemini API Key Configuration ---
 try:
     GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
     if GEMINI_API_KEY:
         genai.configure(api_key=GEMINI_API_KEY)
         print("Gemini API Key configured.")
     else:
-        print("WARN: GEMINI_API_KEY not found in environment. AI generation will fail.")
+        print("WARN: GEMINI_API_KEY not found...")
 except NameError:
-    print("WARN: google-generativeai library not found. Install it (pip install google-generativeai) to use AI features.")
+    print("WARN: google-generativeai library not found...")
 except Exception as e:
     print(f"Error configuring Gemini API: {e}")
 
-# Configure RAG Components (Embedding Model and ChromaDB Client)
-embedding_model_rag = None
-rag_collection = None
-try:
-    print(f"Loading embedding model for RAG: {EMBEDDING_MODEL_NAME}...")
-    # Ensure sentence-transformers is installed: pip install sentence-transformers
-    embedding_model_rag = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    print("RAG Embedding model loaded.")
-    print(f"Connecting to ChromaDB at: {DB_PATH}")
-    # Ensure chromadb is installed: pip install chromadb
-    chroma_client = chromadb.PersistentClient(path=DB_PATH)
-    rag_collection = chroma_client.get_collection(name=COLLECTION_NAME)
-    print(f"Connected to ChromaDB collection '{COLLECTION_NAME}'. Count: {rag_collection.count()}")
-except ImportError:
-    print(f"ERROR: Required library not found. Please run: pip install chromadb sentence-transformers")
-except Exception as e:
-    print(f"ERROR initializing ChromaDB or RAG embedding model: {e}")
-# --- End Configuration ---
-
-
-# --- Standard CRUD Views ---
+# --- Keep CRUD Views (nation_list, nation_detail, etc.) ---
+# ... (paste your existing list, detail, create, update, delete views here) ...
 
 def nation_list(request):
     nations = Nation.objects.all().order_by('name')
@@ -91,47 +65,17 @@ def nation_delete(request, pk):
     context = { 'nation': nation }
     return render(request, 'nations/nation_confirm_delete.html', context)
 
-# --- RAG-Integrated AI Generation View ---
 
+# --- Simplified AI Generation View (NO RAG) ---
 def nation_generate_dm(request, pk):
     nation = get_object_or_404(Nation, pk=pk)
     generated_code = "# Generation failed or prerequisites missing."
     error_message = None
     prompt_used = ""
-    retrieved_context = "RAG system inactive or failed." # Default
+    # No 'retrieved_context' needed here
 
     try:
-        # --- RAG Retrieval Step ---
-        rag_context_for_prompt = ""
-        if rag_collection and embedding_model_rag: # Check if DB/model initialized okay
-            try:
-                print("Performing RAG query...")
-                query_text = f"{nation.name} {nation.description}"
-                query_embedding = embedding_model_rag.encode([query_text]).tolist()
-                results = rag_collection.query(
-                    query_embeddings=query_embedding,
-                    n_results=5 # Number of context chunks to retrieve
-                )
-                if results and results.get('documents'):
-                    retrieved_docs = results['documents'][0]
-                    retrieved_context = "\n---\n".join(retrieved_docs) # Join chunks for display
-                    rag_context_for_prompt = f"Relevant Game Data Context:\n```\n{retrieved_context}\n```\n\n" # Format for prompt
-                    print(f"Retrieved {len(retrieved_docs)} context chunks.")
-                else:
-                     retrieved_context = "No relevant documents found in vector DB."
-                     print("WARN: No relevant docs found in RAG query.")
-
-            except Exception as rag_e:
-                print(f"Error during RAG retrieval: {rag_e}")
-                retrieved_context = f"Error during RAG retrieval: {rag_e}"
-                error_message = "Failed to retrieve context from Vector DB."
-        else:
-             retrieved_context = "RAG components (DB/Embedding Model) not initialized correctly."
-             error_message = retrieved_context # Pass initialization error to template
-             print("WARN: Skipping RAG query due to initialization failure.")
-        # --- End RAG Retrieval ---
-
-        # Check for API Key again, in case it failed silently before
+        # Check for API Key
         loaded_api_key = config('GEMINI_API_KEY', default=None)
         if not loaded_api_key:
             raise ValueError("Gemini API Key not found in environment variables.")
@@ -139,17 +83,14 @@ def nation_generate_dm(request, pk):
         # Select the Gemini model
         model = genai.GenerativeModel('gemini-1.5-flash')
 
-        # Construct the prompt WITH RAG CONTEXT
+        # Construct the prompt WITHOUT RAG context placeholder
         prompt = f"""You are an expert Dominions 6 modder creating a new nation mod file (.dm format).
-Use the following retrieved game data context to ensure accuracy for stats, names, and abilities where relevant. If context is missing or doesn't apply, use reasonable defaults based on the Nation Name and Description.
-
-{rag_context_for_prompt}
-Task: Generate ONLY the core nation definition block AND definitions for 3 basic starting units (1 Commander, 1 Infantry, 1 Ranged/Other). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands.
+Your task is to generate ONLY the core nation definition block AND definitions for 3 basic starting units (1 Commander, 1 Infantry, 1 Ranged/Other). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands. Use reasonable defaults based on the Nation Name and Description.
 
 Nation Name: {nation.name}
 Nation Description: {nation.description}
 
-Generate the following commands, using the context above AND the nation details:
+Generate the following commands:
 - #name "{nation.name}"
 - #epithet "..."
 - #era <number> (Assume 2/MA)
@@ -189,15 +130,15 @@ Output only the raw .dm commands.
              error_message = f"Error processing AI response: {resp_err}"
 
     # --- Exception Handling ---
-    except ValueError as ve: # Catch missing key error specifically
+    except ValueError as ve: # Catch missing key error
         print(f"Configuration Error: {ve}")
         error_message = str(ve)
-        generated_code = f"Error: Configuration problem ({ve}). Check .env file."
-    except NameError as ne: # Catch error if 'genai', 'chromadb', or 'SentenceTransformer' is not defined (library not installed/imported)
-         print(f"NameError: {ne}. Required library missing or import failed?")
-         error_message = f"Required library not available ({ne}). Please run pip install."
-         generated_code = "Error: Required library missing."
-    except Exception as e: # Catch other potential errors (API call errors, network issues, ChromaDB errors during query etc.)
+        generated_code = f"Error: Configuration problem ({ve})."
+    except NameError as ne: # Catch if 'genai' not defined (library install issue)
+         print(f"NameError: {ne}. Is google-generativeai installed?")
+         error_message = "AI generation library not available."
+         generated_code = "Error: AI library missing."
+    except Exception as e: # Catch other errors (API call, etc.)
         print(f"Error during generation view: {e}")
         error_message = f"An error occurred: {e}"
         generated_code = f"Error: Could not generate code ({e})."
@@ -207,6 +148,7 @@ Output only the raw .dm commands.
         'generated_code': generated_code,
         'error_message': error_message,
         'prompt_used': prompt_used,
-        'retrieved_context': retrieved_context, # Pass RAG context to template
+        # No 'retrieved_context' passed to template
     }
+    # Render the *same* results template, it will just show no retrieved context
     return render(request, 'nations/nation_generate_dm.html', context)
