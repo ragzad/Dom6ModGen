@@ -1,1 +1,25 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Vector Database 
+chroma_db_dom6/
+
+# Environment variables
 .env
+
+# Django specific
+db.sqlite3*
+staticfiles/
+media/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE specific
+.vscode/
+.idea/
