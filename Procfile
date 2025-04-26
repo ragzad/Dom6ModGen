@@ -1,1 +1,1 @@
-web: gunicorn dom6modgen.wsgi --log-file -
+web: gunicorn --chdir dom6modgen dom6modgen.wsgi:application --log-file -
