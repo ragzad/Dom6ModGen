@@ -1,29 +1,21 @@
-"""
-URL configuration for dom6modgen project.
+# dom6modgen/urls.py
+# Located at: D:\OllamaUI\Dom6ModGen\dom6modgen\dom6modgen\urls.py
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic.base import RedirectView
-from django.urls import reverse_lazy 
+from django.urls import reverse_lazy
 
 urlpatterns = [
-    # Redirect the root URL ('') to the nation list view
-    path('', RedirectView.as_view(url=reverse_lazy('nations:nation_list')), name='home'), # <-- ADD THIS LINE
-    # Keep existing paths
+    # When a user visits '/', redirect them to the URL named 'nations:nation_list'
+    # reverse_lazy finds the actual path (e.g., '/nations/') from the URL name
+    path('', RedirectView.as_view(url=reverse_lazy('nations:nation_list')), name='home'),
+
     path('admin/', admin.site.urls),
     path('nations/', include('nations.urls')),
-    # Add other app includes later (units, spells, items)
+
+    # --- Add includes for other apps later ---
+    # path('units/', include('units.urls')),
+    # path('spells/', include('spells.urls')),
+    # path('items/', include('items.urls')),
 ]
