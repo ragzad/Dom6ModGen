@@ -16,8 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic.base import RedirectView
+from django.urls import reverse_lazy 
 
 urlpatterns = [
+    # Redirect the root URL ('') to the nation list view
+    path('', RedirectView.as_view(url=reverse_lazy('nations:nation_list')), name='home'), # <-- ADD THIS LINE
+    # Keep existing paths
     path('admin/', admin.site.urls),
     path('nations/', include('nations.urls')),
+    # Add other app includes later (units, spells, items)
 ]
