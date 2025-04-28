@@ -1,26 +1,21 @@
-# dom6modgen/urls.py
-# Main URL configuration for the Dominions 6 Mod Generator project.
+# nations/urls.py
+from django.urls import path
+from . import views # Import views from the current app
 
-from django.contrib import admin
-from django.urls import path, include
-# Importing RedirectView for the root redirect.
-from django.views.generic.base import RedirectView
-# reverse_lazy is no longer needed for this specific redirect.
-# from django.urls import reverse_lazy
+# Define the namespace for this app's URLs
+app_name = 'nations'
 
 urlpatterns = [
-    # Defining the path for the site's root URL ('').
-    # Using a direct path '/nations/' for the redirect URL
-    # to avoid the namespace lookup issue encountered with reverse_lazy here.
-    path('', RedirectView.as_view(url='/nations/'), name='home'), # <-- MODIFIED LINE
-
-    # Standard path for the Django admin interface.
-    path('admin/', admin.site.urls),
-    # Including URLs from the 'nations' app under the '/nations/' prefix.
-    path('nations/', include('nations.urls')),
-
-    # Placeholders for including other app URLs later.
-    # path('units/', include('units.urls')),
-    # path('spells/', include('spells.urls')),
-    # path('items/', include('items.urls')),
+    # URL for the list of nations (e.g., /nations/)
+    path('', views.nation_list, name='nation_list'),
+    # URL for viewing a single nation's details (e.g., /nations/5/)
+    path('<int:pk>/', views.nation_detail, name='nation_detail'),
+    # URL for creating a new nation (e.g., /nations/new/)
+    path('new/', views.nation_create, name='nation_create'),
+    # URL for updating an existing nation (e.g., /nations/5/edit/)
+    path('<int:pk>/edit/', views.nation_update, name='nation_update'),
+    # URL for deleting a nation (e.g., /nations/5/delete/)
+    path('<int:pk>/delete/', views.nation_delete, name='nation_delete'),
+    # URL for generating the DM file (e.g., /nations/5/generate/)
+    path('<int:pk>/generate/', views.nation_generate_dm, name='nation_generate_dm'),
 ]
