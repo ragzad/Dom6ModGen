@@ -25,8 +25,8 @@ except Exception as e:
 # --- Vertex AI Configuration (Read from Environment Variables) ---
 GCP_PROJECT_ID = config('GCP_PROJECT_ID', default=None)
 GCP_REGION = config('GCP_REGION', default='europe-west3') # specified region
-VERTEX_INDEX_ENDPOINT_ID = config('VERTEX_INDEX_ENDPOINT_ID', default='YOUR_ENDPOINT_NUMERIC_ID_HERE') # e.g., '1234567890123456789'
-VERTEX_DEPLOYED_INDEX_ID = config('VERTEX_DEPLOYED_INDEX_ID', default='YOUR_DEPLOYED_INDEX_ID_HERE') # e.g., 'deployed_dom6_index_v1'
+VERTEX_INDEX_ENDPOINT_ID = config('VERTEX_INDEX_ENDPOINT_ID', default='8216764743579336704') # e.g., '1234567890123456789'
+VERTEX_DEPLOYED_INDEX_ID = config('VERTEX_DEPLOYED_INDEX_ID', default='dom6modgen-v1') # e.g., 'deployed_dom6_index_v1'
 
 # Authentication for Vertex AI Client (uses Application Default Credentials - ADC)
 vertex_ai_endpoint = None
