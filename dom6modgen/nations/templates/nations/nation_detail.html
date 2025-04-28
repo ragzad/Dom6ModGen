@@ -12,7 +12,7 @@
 
         {% if nation.description %}
             <h2>Description</h2>
-            {# Using linebreaksbr filter for multi-line text #}
+            {# Using linebreaksbr filter for multi-line text (requires 'humanize' app) #}
             <p>{{ nation.description|linebreaksbr }}</p>
         {% endif %}
 
@@ -23,7 +23,7 @@
         <p><strong>Created At:</strong> {{ nation.created_at }}</p>
         <p><strong>Last Updated:</strong> {{ nation.updated_at }}</p>
 
-        {# Action Links #}
+        {# Action Links for this specific nation #}
         <hr>
         <a href="{% url 'nations:nation_update' nation.pk %}">Edit Nation</a> |
         <a href="{% url 'nations:nation_delete' nation.pk %}">Delete Nation</a> |

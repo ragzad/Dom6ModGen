@@ -10,11 +10,11 @@
 
     <p>Are you sure you want to delete the nation "{{ nation.name }}"?</p>
 
-    {# Form needed to submit the POST request for deletion #}
+    {# Form needed to submit the POST request to confirm deletion #}
     <form method="post">
         {% csrf_token %}
         <button type="submit">Yes, delete</button>
-        {# Link back to detail page for cancellation #}
+        {# Cancel link goes back to the detail page #}
         <a href="{% url 'nations:nation_detail' nation.pk %}">Cancel</a>
     </form>
 

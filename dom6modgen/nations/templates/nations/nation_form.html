@@ -3,27 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {# Dynamic title based on create or update context #}
+    {# Setting title based on create or update context #}
     <title>{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Create New Nation{% endif %}</title>
 </head>
 <body>
-    {# Dynamic heading #}
+    {# Setting heading based on create or update context #}
     <h1>{% if form.instance.pk %}Edit Nation: {{ form.instance.name }}{% else %}Create New Nation{% endif %}</h1>
 
-    {# Form needs method="post" to send data #}
     <form method="post">
-        {# Security token required by Django #}
+        {# Security token required by Django for POST forms #}
         {% csrf_token %}
 
-        {# Render form fields as paragraphs #}
+        {# Rendering form fields simply as paragraphs #}
         {{ form.as_p }}
 
-        {# Dynamic button text #}
+        {# Button text changes based on context #}
         <button type="submit">{% if form.instance.pk %}Update Nation{% else %}Save Nation{% endif %}</button>
     </form>
 
     <hr>
-    {# Link back to list or detail page #}
+    {# Cancel link goes back appropriately #}
     {% if form.instance.pk %}
         <a href="{% url 'nations:nation_detail' form.instance.pk %}">Cancel</a>
     {% else %}
