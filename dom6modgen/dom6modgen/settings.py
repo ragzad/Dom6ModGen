@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'units.apps.UnitsConfig',
     'spells.apps.SpellsConfig',
     'items.apps.ItemsConfig',
+    'django.contrib.humanize'
 ]
 
 MIDDLEWARE = [
