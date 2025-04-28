@@ -3,6 +3,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from .models import Nation
 from .forms import NationForm
 # Imports needed for AI and Vertex AI RAG
+import json
 import google.generativeai as genai
 # Make sure google-cloud-aiplatform is installed: pip install google-cloud-aiplatform
 from google.cloud import aiplatform
@@ -10,6 +11,7 @@ from google.cloud import aiplatform
 # from google.oauth2 import service_account
 # import json
 from decouple import config
+from google.oauth2 import service_account
 import os
 import numpy as np # Often needed by client libraries
 
@@ -17,6 +19,33 @@ import numpy as np # Often needed by client libraries
 
 # Configure Gemini API Key (from .env or Heroku Config Vars)
 # Basic configuration happens once when the module loads
+GCP_SERVICE_ACCOUNT_JSON_STR = config('GCP_SERVICE_ACCOUNT_KEY_JSON', default=None)
+credentials = None
+if GCP_SERVICE_ACCOUNT_JSON_STR:
+    try:
+        key_info = json.loads(GCP_SERVICE_ACCOUNT_JSON_STR)
+        credentials = service_account.Credentials.from_service_account_info(key_info)
+        print("Loaded Service Account credentials from environment variable.")
+    except Exception as cred_err:
+        print(f"ERROR loading credentials from GCP_SERVICE_ACCOUNT_KEY_JSON: {cred_err}")
+
+try:
+    if GCP_PROJECT_ID: # Removed VERTEX_ENDPOINT_ID check here, init needs only project/location
+        # Pass credentials explicitly if loaded, otherwise let it use default ADC path
+        aiplatform.init(
+            project=GCP_PROJECT_ID,
+            location=GCP_REGION,
+            credentials=credentials # Pass the loaded credentials here
+        )
+        print(f"Vertex AI initialized for project {GCP_PROJECT_ID} in {GCP_REGION}.")
+        # ... rest of the initialization
+    else:
+         print("WARN: GCP_PROJECT_ID not found. Vertex AI initialization skipped.")
+         # ...
+except Exception as e:
+     print(f"ERROR initializing Vertex AI client or endpoint: {e}")
+     vertex_endpoint = None
+
 try:
     GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
     if GEMINI_API_KEY:
