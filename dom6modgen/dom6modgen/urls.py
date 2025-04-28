@@ -4,14 +4,14 @@
 from django.contrib import admin
 from django.urls import path, include
 # Importing RedirectView for the root redirect.
-# No longer need reverse_lazy for this specific redirect.
 from django.views.generic.base import RedirectView
-# from django.urls import reverse_lazy # Can remove if not used elsewhere in this file
+# reverse_lazy is no longer needed for this specific redirect.
+# from django.urls import reverse_lazy
 
 urlpatterns = [
     # Defining the path for the site's root URL ('').
     # Using a direct path '/nations/' for the redirect URL
-    # instead of reverse_lazy to avoid the namespace lookup issue.
+    # to avoid the namespace lookup issue encountered with reverse_lazy here.
     path('', RedirectView.as_view(url='/nations/'), name='home'), # <-- MODIFIED LINE
 
     # Standard path for the Django admin interface.
