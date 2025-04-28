@@ -38,11 +38,3 @@ sqlparse # Django dependency
 asgiref # Django dependency
 typing_extensions # Used by many modern libraries
 numpy # Often needed by ML/vector libraries, even clients
-
-# Django Humanize (If using filters like linebreaksbr, truncatewords)
-django.contrib.humanize # Technically not a pip package, enabled in settings.py
-
-# NOTE: Removed torch, transformers, sentence-transformers, chromadb, pandas,
-#       scikit-learn, scipy, onnxruntime, triton, fastapi, uvicorn, kubernetes,
-#       build tools, nvidia-*, and many other indirect dependencies not
-#       strictly required for running the Django app with Vertex AI client calls.
