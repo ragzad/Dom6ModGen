@@ -1,50 +1,54 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {% comment %} Use the nation's name in the title if it exists {% endcomment %}
-    <title>Nation Details: {% if nation %}{{ nation.name }}{% else %}Nation Not Found{% endif %}</title>
-</head>
-<body>
+{% extends "nations/base.html" %}
 
-    {% comment %} Check if the nation object was passed from the view {% endcomment %}
+{% block title %}
+    {% if nation %}{{ nation.name }} Details{% else %}Nation Not Found{% endif %} - {{ block.super }}
+{% endblock %}
+
+{% block content %}
     {% if nation %}
-        <h1>{{ nation.name }}</h1>
+        {# Use a Bootstrap card for layout #}
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                {# Nation Name as Card Title #}
+                <h1 class="card-title mb-0 h3">{{ nation.name }}</h1>
+                {# Action Buttons grouped together #}
+                <div>
+                    <a href="{% url 'nations:nation_update' nation.pk %}" class="btn btn-sm btn-warning me-1" title="Edit">Edit</a>
+                    <a href="{% url 'nations:nation_generate_dm' nation.pk %}" class="btn btn-sm btn-success me-1" title="Generate Mod Code">Generate</a>
+                    <a href="{% url 'nations:nation_delete' nation.pk %}" class="btn btn-sm btn-danger" title="Delete">Delete</a>
+                </div>
+            </div>
+            <div class="card-body">
+                {# Use definition list (dl, dt, dd) for structured data #}
+                <dl class="row">
+                    {% if nation.description %}
+                        <dt class="col-sm-3">Description</dt>
+                        <dd class="col-sm-9">{{ nation.description|linebreaksbr }}</dd>
+                    {% endif %}
 
-        {% if nation.description %}
-            <h2>Description</h2>
-            <p>{{ nation.description|linebreaksbr }}</p> {% comment %} Use linebreaksbr filter for multi-line text {% endcomment %}
-        {% endif %}
+                    {% if nation.creator %}
+                        <dt class="col-sm-3">Creator</dt>
+                        <dd class="col-sm-9">{{ nation.creator.username }}</dd>
+                    {% endif %}
 
-        {% if nation.creator %}
-            <p><strong>Creator:</strong> {{ nation.creator.username }}</p>
-        {% endif %}
+                    <dt class="col-sm-3">Created At</dt>
+                    <dd class="col-sm-9">{{ nation.created_at }}</dd>
 
-        <p><strong>Created At:</strong> {{ nation.created_at }}</p>
-        <p><strong>Last Updated:</strong> {{ nation.updated_at }}</p>
-
-        {% comment %} Add links for editing or deleting later {% endcomment %}
+                    <dt class="col-sm-3">Last Updated</dt>
+                    <dd class="col-sm-9">{{ nation.updated_at }}</dd>
+                </dl>
+            </div>
+            <div class="card-footer text-muted">
+                <a href="{% url 'nations:nation_list' %}" class="btn btn-secondary">Back to Nations List</a>
+            </div>
+        </div>
 
     {% else %}
-        <h1>Nation Not Found</h1>
-        <p>The nation you requested could not be found.</p>
+        {# Handle case where nation is not found #}
+        <div class="alert alert-danger" role="alert">
+            <h1>Nation Not Found</h1>
+            <p>The nation you requested could not be found.</p>
+            <a href="{% url 'nations:nation_list' %}" class="alert-link">Return to Nations List</a>
+        </div>
     {% endif %}
-
-    
-
-    {% if nation %}
-    <h1>{{ nation.name }}</h1>
-    <a href="{% url 'nations:nation_update' nation.pk %}">Edit Nation</a> <hr>
-    <a href="{% url 'nations:nation_delete' nation.pk %}">Delete Nation</a> <hr>
-    <a href="{% url 'nations:nation_generate_dm' nation.pk %}">Generate Mod Code</a> <hr>
-    <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
-{% else %}
-
-   {% endif %}
-    <hr>
-    {% comment %} Add a link back to the main list page {% endcomment %}
-    <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
-
-</body>
-</html>
+{% endblock %}

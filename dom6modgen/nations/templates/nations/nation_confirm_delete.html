@@ -1,21 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confirm Deletion</title>
-</head>
-<body>
-    <h1>Confirm Deletion</h1>
+{% extends "nations/base.html" %}
 
-    <p>Are you sure you want to delete the nation "{{ nation.name }}"?</p>
+{% block title %}Confirm Delete - {{ block.super }}{% endblock %}
 
-    <form method="post">
-        {% csrf_token %}
-        <button type="submit">Yes, delete</button>
-        {% comment %} Link back to the detail page for cancellation {% endcomment %}
-        <a href="{% url 'nations:nation_detail' nation.pk %}">Cancel</a>
-    </form>
+{% block content %}
+    {# Use a card for better visual grouping #}
+    <div class="card border-danger">
+        <div class="card-header bg-danger text-white">
+            <h1 class="h3 mb-0">Confirm Deletion</h1>
+        </div>
+        <div class="card-body">
+            <p class="card-text">Are you sure you want to delete the nation: <strong>"{{ nation.name }}"</strong>?</p>
+            <p class="text-danger">This action cannot be undone.</p>
 
-</body>
-</html>
+            {# Form is needed for the POST request on deletion #}
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">Yes, Delete</button>
+                {# Link back to the detail page if user cancels #}
+                <a href="{% url 'nations:nation_detail' nation.pk %}" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    </div>
+{% endblock %}

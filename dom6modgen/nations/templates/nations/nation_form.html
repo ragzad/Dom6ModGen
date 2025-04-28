@@ -1,28 +1,46 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create New Nation</title>
-</head>
-<body>
-    <h1>Create a New Nation</h1>
+{% extends "nations/base.html" %}
 
-    {% comment %} The form tag needs method="post" to send data to the server {% endcomment %}
-    <form method="post">
-        {% comment %} CRITICAL: csrf_token protects against cross-site request forgery attacks {% endcomment %}
-        {% csrf_token %}
+{% block title %}Nations List - {{ block.super }}{% endblock %}
 
-        {% comment %} Render the form fields. '.as_p' wraps each field in a <p> tag.
-                     Other options include .as_ul (for list items) or .as_table (for table rows),
-                     or looping through fields manually for full control. {% endcomment %}
-        {{ form.as_p }}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Nations</h1>
+    <a href="{% url 'nations:nation_create' %}" class="btn btn-primary">Add New Nation</a>
+</div>
 
-        <button type="submit">Save Nation</button>
-    </form>
+{% if nations %}
+    {# Responsive wrapper for small screens #}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Description (Excerpt)</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for nation in nations %}
+                <tr>
+                    <td><a href="{% url 'nations:nation_detail' nation.pk %}">{{ nation.name }}</a></td>
+                    <td>{{ nation.description|truncatewords:20|default:"(No description)" }}</td>
+                    <td>
+                        {# Action Buttons #}
+                        <a href="{% url 'nations:nation_detail' nation.pk %}" class="btn btn-sm btn-info me-1" title="View Details">View</a>
+                        <a href="{% url 'nations:nation_update' nation.pk %}" class="btn btn-sm btn-warning me-1" title="Edit">Edit</a>
+                        <a href="{% url 'nations:nation_generate_dm' nation.pk %}" class="btn btn-sm btn-success me-1" title="Generate Mod Code">Generate</a>
+                        <a href="{% url 'nations:nation_delete' nation.pk %}" class="btn btn-sm btn-danger" title="Delete">Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    {# Message shown when no nations exist #}
+    <div class="alert alert-info" role="alert">
+        No nations found. <a href="{% url 'nations:nation_create' %}" class="alert-link">Add the first one!</a>
+    </div>
+{% endif %}
 
-    <hr>
-    <a href="{% url 'nations:nation_list' %}">Cancel and return to Nations List</a>
-
-</body>
-</html>
+{% endblock %}
