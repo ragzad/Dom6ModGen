@@ -29,7 +29,7 @@ except Exception as e:
 
 
 # --- Vertex AI Configuration (Read from Environment Variables) ---
-GCP_PROJECT_ID = config('GCP_PROJECT_ID', default=None)
+GCP_PROJECT_ID = config('GCP_PROJECT_ID', default='dom6modgen')
 GCP_REGION = config('GCP_REGION', default='europe-west3') 
 VERTEX_ENDPOINT_ID = config('VERTEX_ENDPOINT_ID', default=None) 
 VERTEX_INDEX_ID = config('VERTEX_INDEX_ID', default=None) 
