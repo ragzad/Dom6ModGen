@@ -1,20 +1,22 @@
 # nations/views.py
-
-# --- Keep other imports ---
 from django.shortcuts import render, get_object_or_404, redirect
 from .models import Nation
 from .forms import NationForm
+# Imports needed for AI and Vertex AI RAG
 import google.generativeai as genai
+# Make sure google-cloud-aiplatform is installed: pip install google-cloud-aiplatform
 from google.cloud import aiplatform
-# --- Add these imports for Method B ---
+# Import necessary components for handling service account credentials from JSON
 import json
 from google.oauth2 import service_account
-# --- End Added imports ---
 from decouple import config
 import os
-import numpy as np
+import numpy as np # Often needed by client libraries
 
-# --- Keep Gemini API Key Configuration ---
+# --- Configuration Section ---
+
+# Configure Gemini API Key (from .env or Heroku Config Vars)
+# Basic configuration happens once when the module loads
 try:
     GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
     if GEMINI_API_KEY:
@@ -23,48 +25,23 @@ try:
     else:
         print("WARN: GEMINI_API_KEY not found in environment. AI generation will fail.")
 except NameError:
+    # Handles case where google-generativeai library isn't installed
     print("WARN: google-generativeai library not found. Install it (pip install google-generativeai) to use AI features.")
 except Exception as e:
     print(f"Error configuring Gemini API: {e}")
 
-
 # --- Vertex AI Configuration (Read from Environment Variables) ---
-GCP_PROJECT_ID = config('GCP_PROJECT_ID', default='dom6modgen')
-GCP_REGION = config('GCP_REGION', default='europe-west3') 
-VERTEX_ENDPOINT_ID = config('VERTEX_ENDPOINT_ID', default=None) 
-VERTEX_INDEX_ID = config('VERTEX_INDEX_ID', default=None) 
-vertex_endpoint = None # Initialize endpoint variable
+# These MUST be set in your Heroku Config Vars for deployment
+GCP_PROJECT_ID = config('GCP_PROJECT_ID', default=None)
+GCP_REGION = config('GCP_REGION', default='europe-west3') # Your specified region
+# IMPORTANT: Replace placeholders below with your ACTUAL IDs from Google Cloud Console
+# Ensure these are set as Config Vars on Heroku
+VERTEX_INDEX_ENDPOINT_ID = config('VERTEX_INDEX_ENDPOINT_ID', default='YOUR_ENDPOINT_NUMERIC_ID_HERE') # e.g., '1234567890123456789'
+VERTEX_DEPLOYED_INDEX_ID = config('VERTEX_DEPLOYED_INDEX_ID', default='YOUR_DEPLOYED_INDEX_ID_HERE') # e.g., 'deployed_dom6_index_v1'
 
-# Inside the Vertex AI Configuration section of views.py
-
-try:
-    if GCP_PROJECT_ID:
-        # --- Modification Start ---
-        # Construct the regional API endpoint hostname
-        regional_api_endpoint = f"{GCP_REGION}-aiplatform.googleapis.com"
-        print(f"DEBUG: Explicitly setting API endpoint to: {regional_api_endpoint}")
-
-        aiplatform.init(
-            project=GCP_PROJECT_ID,
-            location=GCP_REGION,
-            credentials=credentials, # Pass the loaded credentials object (or None)
-            api_endpoint=regional_api_endpoint # Explicitly set the regional endpoint
-        )
-        # --- Modification End ---
-
-        print(f"Vertex AI initialized for project {GCP_PROJECT_ID} in {GCP_REGION}.")
-
-        # ... (rest of the endpoint loading logic remains the same) ...
-
-    else:
-         print("WARN: GCP_PROJECT_ID not found in environment. Vertex AI initialization skipped.")
-         # ...
-except Exception as e:
-     # Catch errors during aiplatform.init() itself
-     print(f"ERROR initializing Vertex AI client or endpoint: {e}")
-     # ...
-
-# --- Start Integration of Method B ---
+# --- Load Service Account Credentials ---
+# This block attempts to load credentials if the specific env var is set.
+# If not set, 'credentials' remains None, and aiplatform.init() uses default ADC.
 GCP_SERVICE_ACCOUNT_JSON_STR = config('GCP_SERVICE_ACCOUNT_KEY_JSON', default=None)
 credentials = None # Initialize credentials variable
 if GCP_SERVICE_ACCOUNT_JSON_STR:
@@ -73,49 +50,50 @@ if GCP_SERVICE_ACCOUNT_JSON_STR:
         key_info = json.loads(GCP_SERVICE_ACCOUNT_JSON_STR)
         # Create credentials object from the parsed info
         credentials = service_account.Credentials.from_service_account_info(key_info)
-        print("Loaded Service Account credentials from environment variable.")
+        print("Loaded Service Account credentials from GCP_SERVICE_ACCOUNT_KEY_JSON.")
     except json.JSONDecodeError:
         print("ERROR: GCP_SERVICE_ACCOUNT_KEY_JSON environment variable contains invalid JSON.")
     except Exception as cred_err:
         print(f"ERROR loading credentials from GCP_SERVICE_ACCOUNT_KEY_JSON: {cred_err}")
-# --- End Integration of Method B ---
+# --- End Credentials Loading ---
 
+
+# Initialize Vertex AI Client (happens once on app start/reload)
+vertex_ai_endpoint = None
 try:
-    # Check if Project ID is available (needed for initialization)
-    if GCP_PROJECT_ID:
-        # Initialize Vertex AI client, explicitly passing credentials if loaded
+    # Check if all necessary config values are present and not placeholders
+    if not all([GCP_PROJECT_ID, GCP_REGION, VERTEX_INDEX_ENDPOINT_ID, VERTEX_DEPLOYED_INDEX_ID]) or \
+       'YOUR_' in VERTEX_INDEX_ENDPOINT_ID or 'YOUR_' in VERTEX_DEPLOYED_INDEX_ID:
+        print("WARN: Missing required Vertex AI config (Project ID, Region, Endpoint ID, Deployed Index ID). Check environment variables. RAG will be disabled.")
+    else:
+        print("Initializing Vertex AI Platform client...")
+        # Initialize the client library, passing credentials if loaded, otherwise use ADC
         aiplatform.init(
             project=GCP_PROJECT_ID,
             location=GCP_REGION,
-            credentials=credentials # Pass the loaded credentials object (or None)
+            credentials=credentials # Pass the loaded credentials object (will be None if env var wasn't set/valid)
         )
         print(f"Vertex AI initialized for project {GCP_PROJECT_ID} in {GCP_REGION}.")
 
-        # Now, proceed ONLY if Endpoint ID is also available
-        if VERTEX_ENDPOINT_ID:
-            try:
-                # Attempt to load the specific endpoint
-                vertex_endpoint = aiplatform.MatchingEngineIndexEndpoint(
-                    index_endpoint_name=VERTEX_ENDPOINT_ID # Use the full ID or resource name from env var
-                )
-                print(f"Successfully loaded Vertex AI Matching Engine endpoint: {VERTEX_ENDPOINT_ID}")
-            except Exception as endpoint_err:
-                 print(f"ERROR loading Vertex AI endpoint '{VERTEX_ENDPOINT_ID}': {endpoint_err}")
-                 vertex_endpoint = None # Ensure it's None if endpoint load fails
-        else:
-            print("WARN: VERTEX_ENDPOINT_ID not found in environment. RAG will be skipped.")
-            vertex_endpoint = None # Explicitly set to None
+        # Get the endpoint resource reference using the numeric ID or full resource name
+        # Ensure VERTEX_INDEX_ENDPOINT_ID holds the correct value from your config vars
+        vertex_ai_endpoint = aiplatform.MatchingEngineIndexEndpoint(
+            index_endpoint_name=VERTEX_INDEX_ENDPOINT_ID # Correct argument name
+        )
+        print(f"Vertex AI Matching Engine endpoint reference created using ID/Name: {VERTEX_INDEX_ENDPOINT_ID}")
 
-    else:
-         print("WARN: GCP_PROJECT_ID not found in environment. Vertex AI initialization skipped.")
-         vertex_endpoint = None # Ensure endpoint is None if project ID is missing
-
+except ImportError:
+     # Catch if the library wasn't installed
+     print("ERROR: google-cloud-aiplatform library not found. Run pip install google-cloud-aiplatform")
+     vertex_ai_endpoint = None
 except Exception as e:
-     # Catch errors during aiplatform.init() itself
-     print(f"ERROR initializing Vertex AI client or endpoint: {e}")
-     vertex_endpoint = None # Ensure endpoint is None if init fails
+    # Catch other potential errors during initialization (permissions, wrong IDs, etc.)
+    print(f"ERROR initializing Vertex AI client or endpoint: {e}")
+    vertex_ai_endpoint = None
+# --- End Configuration ---
 
-# --- Keep CRUD Views (nation_list, nation_detail, etc.) ---
+
+# --- Standard CRUD Views (Keep these as they are) ---
 def nation_list(request):
     nations = Nation.objects.all().order_by('name')
     context = { 'nations': nations }
@@ -158,69 +136,91 @@ def nation_delete(request, pk):
     return render(request, 'nations/nation_confirm_delete.html', context)
 
 
-# --- Updated AI Generation View (with RAG using Vertex AI) ---
+# --- Vertex AI RAG-Integrated AI Generation View ---
 def nation_generate_dm(request, pk):
+    """
+    Generates Dominions 6 mod code for a Nation using RAG + Gemini API.
+    Queries Vertex AI Matching Engine for context.
+    """
     nation = get_object_or_404(Nation, pk=pk)
-    generated_code = None # Initialize
+    # Default values in case of errors
+    generated_code = "# Generation failed or prerequisites missing."
     error_message = None
     prompt_used = ""
-    retrieved_context = "RAG context not generated (feature disabled or error)." # Default message
+    retrieved_context = "RAG system inactive or failed." # Default display value
 
     try:
-        # Check Gemini API Key (still needed for generation)
-        if not GEMINI_API_KEY: # Check the globally configured key status
-            raise ValueError("Gemini API Key not configured or found.")
-
-        # --- RAG - Query Vertex AI Matching Engine ---
-        if vertex_endpoint and VERTEX_INDEX_ID: # Ensure endpoint AND index ID are loaded
-            
+        # --- RAG Retrieval Step using Vertex AI ---
+        rag_context_for_prompt = "" # This will hold the context string for the main prompt
+        # Check if Vertex AI endpoint was initialized successfully during app startup
+        if vertex_ai_endpoint:
             try:
-                # Prepare query embedding (IMPORTANT: Replace dummy embedding)
-                query_text = f"Dominions 6 nation details: {nation.name} - {nation.description}"
-                query_embeddings = [np.random.rand()] * 768  
-
-                print(f"Querying Vertex AI Index: {VERTEX_INDEX_ID} on Endpoint: {VERTEX_ENDPOINT_ID}")
-                match_response = vertex_endpoint.match(
-                    # Extract the *last part* of the index name if the full resource name is provided
-                    deployed_index_id=VERTEX_INDEX_ID.split('/')[-1],
-                    queries=[query_embeddings],
-                    num_neighbors=3 # Get top 3 neighbors
+                print("Generating query embedding using Gemini...")
+                query_text = f"{nation.name} {nation.description}"
+                # Use Gemini API to get embedding for the query text
+                query_embedding_response = genai.embed_content(
+                    model="models/embedding-001", # Or the specific model used for indexing e.g., text-embedding-004
+                    content=query_text,
+                    task_type="RETRIEVAL_QUERY" # Specify task type for better embeddings
                 )
-                print(f"Vertex AI Match Response received (neighbors found: {len(match_response[0])})")
+                query_embedding = query_embedding_response['embedding'] # Extract the vector
 
-                # Process the response to build context string
-                neighbor_texts = []
-                if match_response and match_response[0]:
-                    for neighbor in match_response[0]:
-                        # Assuming neighbor.id holds the document text or an ID to fetch it
-                        neighbor_texts.append(f"[Neighbor ID: {neighbor.id}, Distance: {neighbor.distance:.4f}]")
-                    retrieved_context = "Retrieved Context based on similarity search:\n" + "\n---\n".join(neighbor_texts)
+                print(f"Querying Vertex AI Endpoint ID: {VERTEX_INDEX_ENDPOINT_ID} with Deployed Index ID: {VERTEX_DEPLOYED_INDEX_ID}...")
+                # Query the deployed index endpoint using find_neighbors method
+                NUM_NEIGHBORS = 5 # How many results to retrieve
+                response = vertex_ai_endpoint.find_neighbors(
+                    queries=[query_embedding], # Pass the query embedding as a list
+                    deployed_index_id=VERTEX_DEPLOYED_INDEX_ID, # Use the ID you noted down
+                    num_neighbors=NUM_NEIGHBORS
+                )
+
+                # Process the results from Vertex AI
+                retrieved_docs_info = [] # Store info about retrieved docs
+                if response and response[0]: # Response is a list containing one list of neighbors for our query
+                    print(f"Received {len(response[0])} neighbors from Vertex AI.")
+                    # *** Placeholder for actual text retrieval ***
+                    # Need to implement logic to fetch text based on neighbor.id
+                    neighbor_ids = [neighbor.id for neighbor in response[0]]
+                    for neighbor in response[0]:
+                        retrieved_docs_info.append(f"ID: {neighbor.id} (Distance: {neighbor.distance:.4f})")
+                    retrieved_context = "\n".join(retrieved_docs_info)
+                    # This context will be passed to Gemini (currently just IDs)
+                    rag_context_for_prompt = f"Retrieved Relevant Game Data IDs (Context lookup pending):\n```\n{retrieved_context}\n```\n\n"
                 else:
-                    retrieved_context = "No relevant context found via RAG."
+                     retrieved_context = "No relevant neighbors found in Vertex AI."
+                     print("WARN: No relevant neighbors found in Vertex AI query.")
 
-            except Exception as rag_err:
-                 print(f"ERROR during RAG query: {rag_err}")
-                 error_message = f"RAG query failed: {rag_err}"
-                 retrieved_context = "Error during RAG context retrieval."
+            except Exception as rag_e:
+                # Handle errors during the RAG query process
+                print(f"Error during Vertex AI RAG retrieval: {rag_e}")
+                retrieved_context = f"Error during Vertex AI RAG retrieval: {rag_e}"
+                error_message = "Failed to retrieve context from Vertex AI."
         else:
-             retrieved_context = "RAG skipped: Vertex AI endpoint/index not available or configured."
+             # Handle case where Vertex AI components failed to initialize on startup
+             retrieved_context = "Vertex AI RAG components not initialized correctly."
+             error_message = retrieved_context # Pass initialization error
+             print("WARN: Skipping RAG query due to Vertex AI initialization failure.")
+        # --- End RAG Retrieval ---
 
-        # --- Generation using Gemini (potentially with RAG context) ---
-        model = genai.GenerativeModel('gemini-1.5-flash') # Or your preferred model
+        # Check for Gemini API Key (ensure it was configured)
+        loaded_api_key = config('GEMINI_API_KEY', default=None)
+        if not loaded_api_key:
+            raise ValueError("Gemini API Key not found in environment variables.")
 
-        # Construct the prompt, including the retrieved RAG context
+        # Select the Gemini model for the main generation task
+        generation_model = genai.GenerativeModel('gemini-1.5-flash') # Or 'gemini-1.5-pro'
+
+        # Construct the final prompt, injecting the retrieved RAG context (or IDs)
         prompt = f"""You are an expert Dominions 6 modder creating a new nation mod file (.dm format).
-Your task is to generate ONLY the core nation definition block AND definitions for 3 basic starting units (1 Commander, 1 Infantry, 1 Ranged/Other). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands. Use reasonable defaults based on the Nation Name and Description.
+Use the following retrieved game data context (currently showing IDs of relevant items/units/spells/etc.) to ensure accuracy where possible. If context is missing or doesn't apply, use reasonable defaults based on the Nation Name and Description provided below the context.
 
-Incorporate the following related context if relevant, otherwise ignore it:
---- CONTEXT START ---
-{retrieved_context}
---- CONTEXT END ---
+{rag_context_for_prompt}
+Task: Generate ONLY the core nation definition block AND definitions for 3 basic starting units (1 Commander, 1 Infantry, 1 Ranged/Other). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands.
 
 Nation Name: {nation.name}
 Nation Description: {nation.description}
 
-Generate the following commands:
+Generate the following commands, using the context above AND the nation details:
 - #name "{nation.name}"
 - #epithet "..."
 - #era <number> (Assume 2/MA)
@@ -241,40 +241,49 @@ Also generate the '#newmonster' blocks for the 3 starting units mentioned above,
 
 Output only the raw .dm commands.
 """
-        prompt_used = prompt # Store for display/debugging
+        prompt_used = prompt # Store the prompt for debugging
 
+        # Make the Generation API call to Gemini
         print("Attempting to call Gemini API for generation...")
-        generation_response = model.generate_content(prompt)
+        generation_response = generation_model.generate_content(prompt)
         print("Gemini API generation call completed.")
 
-        # Process the generation response
+        # Process the generation response from Gemini
         try:
             generated_code = generation_response.text
             if not generated_code.strip(): generated_code = "# Error: AI response was empty."
         except ValueError:
+             # Handle cases where the response might be blocked
              generated_code = f"# Error: AI response blocked or invalid."
              try: error_message = f"AI Response Feedback: {generation_response.prompt_feedback}"
              except Exception: error_message = "AI response blocked or invalid, feedback unavailable."
         except Exception as resp_err:
+             # Catch other potential errors accessing response parts
              generated_code = f"# Error: Could not parse AI response."
              error_message = f"Error processing AI response: {resp_err}"
 
-    # --- Exception Handling ---
+    # --- Exception Handling for the entire view ---
     except ValueError as ve: # Catch missing key/config error
         print(f"Configuration Error: {ve}")
         error_message = str(ve)
+        generated_code = f"Error: Configuration problem ({ve}). Check environment variables."
     except NameError as ne: # Catch if a required library wasn't imported
          print(f"NameError: {ne}. Required library missing or import failed?")
          error_message = f"Required library not available ({ne}). Please run pip install."
-    except Exception as e: # Catch other potential errors
+         generated_code = "Error: Required library missing."
+    except Exception as e: # Catch other potential errors (API calls, network, Vertex AI query errors etc.)
         print(f"Error during generation view: {e}")
         error_message = f"An error occurred: {e}"
+        generated_code = f"Error: Could not generate code ({e})."
 
+    # Prepare context for the results template
     context = {
         'nation': nation,
-        'generated_code': generated_code or "# Generation failed.", # Ensure generated_code isn't None
+        'generated_code': generated_code,
         'error_message': error_message,
         'prompt_used': prompt_used,
-        'retrieved_context': retrieved_context, # Pass RAG context/IDs for display
+        'retrieved_context': retrieved_context, # Pass retrieved context/IDs for display
     }
+    # Render the template to show results/errors
     return render(request, 'nations/nation_generate_dm.html', context)
+
