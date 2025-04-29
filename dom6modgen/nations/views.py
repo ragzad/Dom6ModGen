@@ -30,10 +30,39 @@ except Exception as e:
 
 # --- Vertex AI Configuration (Read from Environment Variables) ---
 GCP_PROJECT_ID = config('GCP_PROJECT_ID', default=None)
-GCP_REGION = config('GCP_REGION', default='us-central1') 
+GCP_REGION = config('GCP_REGION', default='europe-west3') 
 VERTEX_ENDPOINT_ID = config('VERTEX_ENDPOINT_ID', default=None) 
 VERTEX_INDEX_ID = config('VERTEX_INDEX_ID', default=None) 
 vertex_endpoint = None # Initialize endpoint variable
+
+# Inside the Vertex AI Configuration section of views.py
+
+try:
+    if GCP_PROJECT_ID:
+        # --- Modification Start ---
+        # Construct the regional API endpoint hostname
+        regional_api_endpoint = f"{GCP_REGION}-aiplatform.googleapis.com"
+        print(f"DEBUG: Explicitly setting API endpoint to: {regional_api_endpoint}")
+
+        aiplatform.init(
+            project=GCP_PROJECT_ID,
+            location=GCP_REGION,
+            credentials=credentials, # Pass the loaded credentials object (or None)
+            api_endpoint=regional_api_endpoint # Explicitly set the regional endpoint
+        )
+        # --- Modification End ---
+
+        print(f"Vertex AI initialized for project {GCP_PROJECT_ID} in {GCP_REGION}.")
+
+        # ... (rest of the endpoint loading logic remains the same) ...
+
+    else:
+         print("WARN: GCP_PROJECT_ID not found in environment. Vertex AI initialization skipped.")
+         # ...
+except Exception as e:
+     # Catch errors during aiplatform.init() itself
+     print(f"ERROR initializing Vertex AI client or endpoint: {e}")
+     # ...
 
 # --- Start Integration of Method B ---
 GCP_SERVICE_ACCOUNT_JSON_STR = config('GCP_SERVICE_ACCOUNT_KEY_JSON', default=None)
