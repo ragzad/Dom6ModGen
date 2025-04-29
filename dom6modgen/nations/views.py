@@ -173,25 +173,7 @@ def nation_generate_dm(request, pk):
 
         # --- RAG - Query Vertex AI Matching Engine ---
         if vertex_endpoint and VERTEX_INDEX_ID: # Ensure endpoint AND index ID are loaded
-            try:
-                # ... (prepare query_embeddings) ...
-
-                print(f"Querying Vertex AI Index: {VERTEX_INDEX_ID} on Endpoint: {VERTEX_ENDPOINT_ID}") # Use full ID here too for clarity
-
-                # --- Modification Start ---
-                # Pass the full VERTEX_INDEX_ID directly
-                match_response = vertex_endpoint.match(
-                    deployed_index_id=VERTEX_INDEX_ID, # <-- Use the full ID variable
-                    queries=[query_embeddings],
-                    num_neighbors=3
-                )
-                # --- Modification End ---
-
-                print(f"Vertex AI Match Response received (neighbors found: {len(match_response[0])})")
-                # ... (rest of the try block) ...
-            except Exception as rag_err:
-                print(f"ERROR during RAG query: {rag_err}") # The error is caught here
-                # ... (rest of the except block) ...
+            
             try:
                 # Prepare query embedding (IMPORTANT: Replace dummy embedding)
                 query_text = f"Dominions 6 nation details: {nation.name} - {nation.description}"
