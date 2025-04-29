@@ -177,7 +177,7 @@ def nation_generate_dm(request, pk):
             try:
                 # Prepare query embedding (IMPORTANT: Replace dummy embedding)
                 query_text = f"Dominions 6 nation details: {nation.name} - {nation.description}"
-                query_embeddings = 768  
+                query_embeddings = [np.random.rand()] * 768  
 
                 print(f"Querying Vertex AI Index: {VERTEX_INDEX_ID} on Endpoint: {VERTEX_ENDPOINT_ID}")
                 match_response = vertex_endpoint.match(
