@@ -215,29 +215,10 @@ def nation_generate_dm(request, pk):
 Use the following retrieved game data context (currently showing IDs of relevant items/units/spells/etc.) to ensure accuracy where possible. If context is missing or doesn't apply, use reasonable defaults based on the Nation Name and Description provided below the context.
 
 {rag_context_for_prompt}
-Task: Generate ONLY the core nation definition block AND definitions for 3 basic starting units (1 Commander, 1 Infantry, 1 Ranged/Other). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands.
+Task: Generate ONLY the core nation definition block AND definitions for 8 basic starting units (2 Commander, 1 mage, 1 priest, 4 troops). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands.
 
 Nation Name: {nation.name}
 Nation Description: {nation.description}
-
-Generate the following commands, using the context above AND the nation details:
-- #name "{nation.name}"
-- #epithet "..."
-- #era <number> (Assume 2/MA)
-- #descr "{nation.description}"
-- #summary "..."
-- #brief "..."
-- #flag "PLACEHOLDER/{nation.name}_flag.tga"
-- #color <r> <g> <b>
-- #secondarycolor <r> <g> <b>
-- #idealcold <number>
-- #startsite "..."
-- #startcom "{nation.name} Commander"
-- #startunittype1 "{nation.name} Infantry"
-- #startunittype2 "{nation.name} Skirmisher"
-- #dominionstr <number>
-- #castleprod <number>
-Also generate the '#newmonster' blocks for the 3 starting units mentioned above, including basic stats (#hp, #str, #att, #def, #prec, #mor, #mr, #move, #ap), costs (#recruitcost, #resourcecost, #upkeep), basic #weapon/#armor suggestions (using names), and appropriate tags (#commander, #infantry, #startunit etc.).
 
 Output only the raw .dm commands.
 """
