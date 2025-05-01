@@ -181,14 +181,19 @@ def nation_generate_dm(request, pk):
     guideline_context_str = "Guideline RAG system inactive or failed."
     combined_retrieved_context_display = f"Nation Context:\n{nation_context_str}\n\nGuideline Context:\n{guideline_context_str}"
 
+    # Flags to check if we can actually query the indices.
+    # Initialize based on whether the endpoint objects were created successfully at startup
+    can_query_nation = bool(vertex_ai_endpoint_nation)
+    can_query_guideline = bool(guideline_vertex_ai_endpoint)
+    query_embedding = None # Ensure defined before try block
+
     try:
         # --- RAG Step: Get Context from Vertex AI ---
         # We'll build the context for the AI prompt here.
         rag_context_for_prompt = ""
-        query_embedding = None
 
-        # Only proceed if we have at least one index connection ready.
-        if vertex_ai_endpoint_nation or guideline_vertex_ai_endpoint:
+        # Only try embedding if at least one index connection is ready.
+        if can_query_nation or can_query_guideline:
             try:
                 print("Generating query embedding using Gemini...")
                 query_text = f"{nation.name} {nation.description}"
@@ -206,12 +211,16 @@ def nation_generate_dm(request, pk):
                 print(f"Error generating query embedding: {embed_e}")
                 error_message = f"Failed to generate query embedding: {embed_e}"
                 # Can't search without the embedding vector.
-                vertex_ai_endpoint_nation = None
-                guideline_vertex_ai_endpoint = None
+                # Mark indices as unavailable if embedding failed.
+                can_query_nation = False
+                can_query_guideline = False
+                query_embedding = None # Ensure embedding is None if it failed
 
         # ---- Search the Nation Index ----
-        if vertex_ai_endpoint_nation and query_embedding:
+        # Check if we can query this index (and have an embedding).
+        if can_query_nation and query_embedding:
             try:
+                # Use the global vertex_ai_endpoint_nation directly
                 print(f"Querying NATION Index Endpoint: {VERTEX_INDEX_ENDPOINT_ID} with Deployed Index ID: {VERTEX_DEPLOYED_INDEX_ID}...")
                 NUM_NEIGHBORS = 5 # How many results to fetch.
                 nation_response = vertex_ai_endpoint_nation.find_neighbors(
@@ -235,16 +244,17 @@ def nation_generate_dm(request, pk):
                 print(f"Error during NATION Index RAG retrieval: {nation_rag_e}")
                 nation_context_str = f"Error during NATION Index retrieval: {nation_rag_e}"
                 if not error_message: error_message = "Failed to retrieve context from Nation Index."
-        elif not vertex_ai_endpoint_nation:
-             nation_context_str = "NATION Index endpoint not initialized."
-             print("WARN: Skipping NATION RAG query due to endpoint initialization failure.")
-        elif not query_embedding:
-             nation_context_str = "NATION Index query skipped due to embedding failure."
+        # Explain why the query was skipped.
+        elif not can_query_nation:
+             nation_context_str = "NATION Index endpoint not initialized or embedding failed."
+             print("WARN: Skipping NATION RAG query due to initialization or embedding failure.")
 
 
         # ---- Search the Guideline Index ----
-        if guideline_vertex_ai_endpoint and query_embedding:
+        # Check if we can query this index (and have an embedding).
+        if can_query_guideline and query_embedding:
             try:
+                # Use the global guideline_vertex_ai_endpoint directly
                 print(f"Querying GUIDELINE Index Endpoint: {GUIDELINE_VERTEX_INDEX_ENDPOINT_ID} with Deployed Index ID: {GUIDELINE_VERTEX_DEPLOYED_INDEX_ID}...")
                 NUM_NEIGHBORS_GUIDELINE = 3 # How many results to fetch (can be different).
                 guideline_response = guideline_vertex_ai_endpoint.find_neighbors(
@@ -268,11 +278,10 @@ def nation_generate_dm(request, pk):
                 print(f"Error during GUIDELINE Index RAG retrieval: {guideline_rag_e}")
                 guideline_context_str = f"Error during GUIDELINE Index retrieval: {guideline_rag_e}"
                 if not error_message: error_message = "Failed to retrieve context from Guideline Index."
-        elif not guideline_vertex_ai_endpoint:
-             guideline_context_str = "GUIDELINE Index endpoint not initialized."
-             print("WARN: Skipping GUIDELINE RAG query due to endpoint initialization failure.")
-        elif not query_embedding:
-             guideline_context_str = "GUIDELINE Index query skipped due to embedding failure."
+        # Explain why the query was skipped.
+        elif not can_query_guideline:
+             guideline_context_str = "GUIDELINE Index endpoint not initialized or embedding failed."
+             print("WARN: Skipping GUIDELINE RAG query due to initialization or embedding failure.")
 
         # ---- Combine Retrieved Info ----
         # Prepare the context string for the main Gemini prompt.
