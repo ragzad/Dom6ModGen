@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My Django App{% endblock %}</title>
+    {# For example: {% load static %} <link rel="stylesheet" href="{% static 'css/style.css' %}"> #}
+</head>
+<body>
+
+    <header>
+        {# Site header content goes here #}
+        <h1>My Django Application</h1>
+        {# Example navigation: #}
+        <nav>
+            <a href="{% url 'nations:nation_list' %}">Nations</a>
+            {# Add links to other apps here #}
+        </nav>
+    </header>
+
+    <main>
+        {# Display messages from the messages framework #}
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {# This is where the content of the extending templates will go #}
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <footer>
+        {# Site footer content goes here #}
+        <p>&copy; {% now "Y" %} My Django App</p>
+    </footer>
+
+    {# For example: {% load static %} <script src="{% static 'js/script.js' %}"></script> #}
+
+</body>
+</html>
