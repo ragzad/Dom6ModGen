@@ -309,7 +309,99 @@ Task: Generate ONLY the core nation definition block AND definitions for 8 basic
 Nation Name: {nation.name}
 Nation Description: {nation.description}
 
-Output only the raw .dm commands.
+Output only the raw .dm commands ensuring to query the RAG databases to stay consistent with syntax and proper and contextual ID usage.
+
+Also adhering to the following guidelines
+
+1. Introduction: AI and the Future of Dominions Modding
+Dominions 6, a complex fantasy strategy game by Illwinter Game Design, boasts a dedicated community and a rich history rooted in mythological and historical paraphrases. A significant aspect of its longevity is its moddability, allowing players to create new nations, units, spells, items, and events. However, the modding process involves mastering a specific set of commands, adhering to strict syntax rules, and navigating complex game mechanics, presenting a considerable learning curve.   
+
+The advent of powerful Large Language Models (LLMs) presents an intriguing opportunity to streamline and enhance the Dominions 6 modding experience. AI could potentially assist modders by generating content like descriptions, suggesting balanced stats, or even drafting .dm command structures. Yet, the precise syntax and intricate balance required for functional Dominions mods pose significant challenges for current AI generation techniques.   
+
+This report outlines a comprehensive guideline for leveraging AI, specifically through Retrieval-Augmented Generation (RAG), to assist in creating Dominions 6 faction mods. The guideline itself is designed to be structured optimally for use within a RAG system. Furthermore, it details methods for implementing the retrieval component of such a system, focusing on generating text embeddings, storing them using the pgvector extension for PostgreSQL, and deploying the retrieval mechanism within a Heroku application environment. The goal is not full automation but rather an AI-powered assistant that empowers human modders by providing quick access to accurate information, examples, and syntactically correct code snippets, thereby lowering the barrier to entry and accelerating the mod development process.
+
+2. Dominions 6 Modding Fundamentals
+A foundational understanding of Dominions 6 modding principles is essential before integrating AI assistance. This involves familiarity with the file structure, command syntax, core commands for creating game elements, and the mod loading process.
+
+2.1. Mod File Structure and Syntax
+Dominions 6 mods are defined primarily through text files with a .dm extension. These files must reside within a dedicated directory, named identically to the mod file (excluding the extension), located inside the game's mods folder within the user data directory (e.g., ~/.dominions6/mods/MyMod/MyMod.dm on Linux/Mac). All associated assets, such as custom images (.tga format is common ), should be placed within this mod directory or its subdirectories. References to files in subdirectories must use forward slashes (/), irrespective of the operating system (e.g., #icon "images/nation_flag.tga"). Crucially, filenames must avoid spaces and special characters, and are case-sensitive, to ensure compatibility, especially in network games.   
+
+The syntax within .dm files follows specific rules :   
+
+Comments: Lines beginning with two dashes (--) are treated as comments and ignored by the game engine. They are vital for explaining the mod's logic and intent.
+Commands: All modding commands start with a hash symbol (#).
+Arguments: Commands may be followed by zero or more arguments, which provide values or specify targets for the command. Arguments are typically denoted as <arg> in documentation.
+Optional Arguments: Arguments enclosed in square brackets (``) in the official documentation are optional.
+Alternative Arguments: A vertical bar (|) between arguments signifies an OR condition; only one of the options should be used.
+Binary Attributes: Commands without arguments often toggle a specific boolean attribute (e.g., #uw makes a unit amphibious).
+Modders are strongly encouraged to consult the official Dominions 6 Modding Manual and Event Modding Manual, available on the Illwinter website, as the definitive source for all commands and their precise usage.   
+
+2.2. Essential Modding Commands for Faction Creation
+Creating a new faction involves defining the nation itself, its units and commanders, unique spells, and potentially starting magic sites. This requires a range of specific commands :   
+
+Nation Definition: Begins with #newnation (or #selectnation <nbr> to modify) and ends with #end. Key commands include #name, #epithet, #era, #descr, #summary, #brief for text; #flag for the nation's banner; #startsite for initial magic sites; #idealcold and #defchaos, #defsloth, etc., for climate preference and default scales; and #addgod to specify available pretenders.
+Unit/Commander Definition: Uses #newmonster [<nbr>] (or #selectmonster "<name>" | <nbr>) and #end. Essential commands set attributes like #name, #hp, #str, #att, #def, #prot, #mr, #mor, #mapmove; define appearance (#spr1, #spr2); assign equipment (#weapon, #armor); grant #magicskill or #custommagic; and set special abilities (e.g., #flying, #stealthy, #sacred). #copystats <nbr> is useful for basing a new unit on an existing one, and #clear (or variants like #clearweapons) removes inherited attributes.
+Recruitment: Commands like #addrecunit, #addreccom, and their terrain-specific variants (e.g., #forestrec, #mountainfortcom) link defined monsters to the nation's recruitment lists in forts or specific provinces. #startcom defines the initial leader, and #hero1 through #hero10 assign national heroes.
+Spell Definition: Spells are created with #newspell (or #selectspell "<name>" | <nbr>) and #end. Key commands include #name, #descr, #school, #researchlevel, #path and #pathlevel (for magic requirements), #fatiguecost, #aoe, #damage, #effect, #nreff (number of effects/summons), #range, and #spec (special attributes like MR negates). Rituals have additional commands for range (#provrange) and targeting restrictions.
+Magic Site Definition: Sites use #newsite [<nbr>] (or #selectsite "<name>" | <nbr>) and #end. Commands define #name, #path, appearance (#look), placement restrictions (#loc), gem/gold/resource income (#gems, #gold, #res), discovery level (#level), #rarity, and special effects like unit recruitment (#homemon, #mon, #natmon), summoning (#summon), or scale alterations (#incscale).
+Table 1: Key Dominions 6 Modding Commands for Faction Creation
+
+Category	Command Examples	Arguments	Purpose
+Nation	#newnation, #selectnation	<nbr> (optional for new)	Start defining/modifying a nation.
+#name, #epithet, #descr	<string>	Set textual information.
+#era	`<1	2
+#flag	<imgfile>	Assign nation flag image.
+#idealcold, #defchaos, etc.	<value>	Set climate preference and default scales.
+#addgod	`"<monster name>"	<nbr>`
+Unit/Comm	#newmonster, #selectmonster	<nbr> (optional for new), `"<name>"	<nbr>`
+#name, #descr	<string>	Set name and description.
+#spr1, #spr2	<imgfile>	Assign unit sprites (normal, attack).
+#hp, #str, #att, #def, etc.	<integer>	Set base statistics.
+#weapon, #armor	`"<name>"	<nbr>`
+#magicskill	<path> <level>	Grant magic paths/levels.
+Recruitment	#addrecunit, #addreccom	`"<monster name>"	<monster nbr>`
+#(terrain)rec, #(terrain)com	`"<monster name>"	<monster nbr>`
+#startcom	`"<monster name>"	<monster nbr>`
+Spell	#newspell, #selectspell	`"<name>"	<nbr>`
+#name, #descr	<string>	Set spell name and description.
+#school, #researchlevel	<integer>	Assign to magic school and set research level.
+#path, #pathlevel	<reqnr> <path> <level>	Define magic path requirements.
+#effect, #damage, #aoe, #range	<value>	Define spell effects, damage, area, range.
+#spec	<bitmask>	Set special properties (e.g., MR negates, elemental type).
+Site	#newsite, #selectsite	<nbr> (optional for new), `"<name>"	<nbr>`
+#name, #path, #level, #rarity	<string>, <integer>	Set site name, path, discovery level, rarity.
+#gems, #gold, #res	<path> <amount>, <amount>	Define resource income.
+#mon, #com, #summon	`"<monster name>"	<monster nbr>`
+General	#end	(none)	Marks the end of a definition block (nation, monster, spell, site).
+--	(text)	Denotes a comment.
+
+Export to Sheets
+(Note: This table summarizes key commands; consult the official manual  for a complete list and detailed parameters.)   
+
+2.3. Argument Types and Bitmasks
+Commands accept arguments of specific types :   
+
+integer: Standard whole numbers used for stats, counts, levels, etc.
+percent: Percentage values, typically represented as integers in the mod file.
+string: Text enclosed in double quotes, used for names and descriptions.
+bitmask: A specialized integer where each bit (power of 2) corresponds to a specific flag or attribute. The value assigned is the sum of the powers of 2 for all desired attributes. For example, if attribute A is 1 (2 
+0
+ ), attribute B is 2 (2 
+1
+ ), and attribute C is 4 (2 
+2
+ ), assigning a bitmask value of 5 (1 + 4) would grant attributes A and C. This allows multiple boolean flags to be set with a single numerical argument.
+2.4. Mod Loading Order and Inter-Mod Dependencies
+Dominions 6 loads mods sequentially, processing one entire .dm file before moving to the next. Within each mod file, commands are parsed according to a strict internal order: mod info, weapons, armors, units, names, blessings, sites, nations, spells, magic items, general commands, poptypes, mercenaries, and finally events.   
+
+This loading process has a critical consequence: it is generally impossible to reliably reference objects defined in another mod by name. Because the engine processes mods wholesale, one mod cannot assume that an element (like a specific unit or weapon) from another mod has already been defined when its own commands are parsed. This necessitates that mods aiming for compatibility either be self-contained or require careful coordination and potentially specific loading orders managed by the user, though the game itself doesn't offer guarantees.   
+
+2.6. Initial Faction Design Considerations
+While the technical commands form the foundation, successful faction modding also requires design considerations. This involves defining the nation's thematic identity, its strengths and weaknesses, designing a suitable pretender god (balancing magic paths, bless effects, and economic scales), and aiming for overall balance within the game's ecosystem. Resources like community-written nation guides can offer valuable perspectives on existing faction paradigms and balance philosophies. A common piece of advice for beginners is to start by creating an entirely new nation (using high ID numbers, e.g., 150+ ) rather than attempting to modify existing vanilla nations. Modifying core game assets can sometimes lead to unexpected bugs or conflicts due to differences between the game's internal data and the modding system.   
+
+The structured nature of Dominions modding, with its clear commands and block definitions (#newnation...#end), inherently creates a hierarchical organization within the .dm files. This structured format aligns remarkably well with best practices for organizing information for Retrieval-Augmented Generation systems, which favor hierarchical data for improved contextual retrieval. Consequently, well-commented .dm files, or documentation derived directly from them, represent ideal source material for building an effective RAG-based modding assistant. The system can leverage this structure to retrieve complete, contextually relevant blocks of commands or definitions.   
+
+
 """
         # Keep a copy of the prompt for debugging.
         prompt_used = prompt
