@@ -15,6 +15,11 @@ from decouple import config
 import os
 import numpy as np # Often needed by client libraries
 
+# NEW: Import the task
+from .tasks import generate_nation_dm_task
+from .models import NationGenerationStatus # Import status choices
+from django.contrib import messages # For user feedback
+
 # --- Settings & API Keys ---
 
 # Get the Gemini API Key from environment variables.
@@ -168,7 +173,48 @@ def nation_delete(request, pk):
 
 
 # --- AI Generation View (Using RAG) ---
+# --- AI Generation View (NOW DISPATCHES TASK) ---
 def nation_generate_dm(request, pk):
+    """
+    Triggers an asynchronous background task to generate Dominions 6 mod code.
+    """
+    nation = get_object_or_404(Nation, pk=pk)
+
+    if request.method == 'POST':
+        # Check if a task is already running or pending for this nation
+        if nation.generation_status in [NationGenerationStatus.PENDING, NationGenerationStatus.GENERATING]:
+             messages.warning(request, f"Generation for '{nation.name}' is already in progress (Task ID: {nation.generation_task_id}). Please wait.")
+        else:
+            # Dispatch the background task
+            print(f"Dispatching generation task for Nation ID: {pk}")
+            try:
+                # Use .delay() as a shortcut for .apply_async()
+                task = generate_nation_dm_task.delay(nation_id=pk)
+                print(f"Task {task.id} dispatched for Nation ID: {pk}")
+
+                # Update nation status to PENDING and store task ID
+                nation.generation_status = NationGenerationStatus.PENDING
+                nation.generation_task_id = task.id
+                nation.generation_error = None # Clear previous error
+                nation.save(update_fields=['generation_status', 'generation_task_id', 'generation_error'])
+
+                messages.success(request, f"Generation started for '{nation.name}' (Task ID: {task.id}). Please check back shortly for results.")
+            except Exception as e:
+                # Handle potential errors during task dispatch
+                print(f"Error dispatching task for Nation ID {pk}: {e}")
+                messages.error(request, f"Could not start generation task for '{nation.name}'. Error: {e}")
+                # Optionally set status back to NONE or FAILURE here
+                nation.generation_status = NationGenerationStatus.FAILURE
+                nation.generation_error = f"Failed to dispatch task: {e}"
+                nation.save(update_fields=['generation_status', 'generation_error'])
+
+
+        # Redirect back to the nation detail page regardless of dispatch outcome
+        return redirect('nations:nation_detail', pk=nation.pk)
+
+    # For simplicity, redirect GET requests back to detail view.
+    messages.info(request, "Click the 'Generate DM Code' button again to start generation.")
+    return redirect('nations:nation_detail', pk=nation.pk)
     """Generates Dominions 6 mod code using RAG with two indices + Gemini."""
     nation = get_object_or_404(Nation, pk=pk)
     # Set some defaults in case things go wrong.

@@ -38,3 +38,5 @@ sqlparse # Django dependency
 asgiref # Django dependency
 typing_extensions # Used by many modern libraries
 numpy # Often needed by ML/vector libraries, even clients
+redis>=4.0.0,<5.0.0  
+celery>=5.0,<6.0   

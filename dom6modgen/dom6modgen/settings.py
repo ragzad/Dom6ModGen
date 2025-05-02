@@ -119,3 +119,15 @@ CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_STRING
 
 # GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
 
+# Celery Configuration Options
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/London' # Optional: Set to timezone
+CELERY_TASK_TRACK_STARTED = True # Optional: To see 'STARTED' status
+CELERY_TASK_SEND_SENT_EVENT = True # Optional: Needed for monitoring tools like Flower
+
+print(f"Django settings using Redis URL: {REDIS_URL}")
