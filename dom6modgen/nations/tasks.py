@@ -1,6 +1,20 @@
 # nations/tasks.py
-# ... (imports and other code) ...
+from celery import shared_task  # <<< --- ADD THIS LINE --- <<<
+from .models import Nation, NationGenerationStatus
+import google.generativeai as genai
+from google.cloud import aiplatform
+from decouple import config
+import time
 
+# ... rest of the imports remain the same ...
+from .views import (
+    vertex_ai_endpoint_nation,
+    guideline_vertex_ai_endpoint,
+    VERTEX_DEPLOYED_INDEX_ID,
+    GUIDELINE_VERTEX_DEPLOYED_INDEX_ID,
+    GCP_PROJECT_ID, # Needed if re-initializing clients here
+    GCP_REGION      # Needed if re-initializing clients here
+)
 @shared_task(bind=True) # bind=True gives access to self
 def generate_nation_dm_task(self, nation_id):
     """
