@@ -304,7 +304,7 @@ def nation_generate_dm(request, pk):
 Use the following retrieved game data context (Nation Data) and modding guideline context (Guideline Data) to ensure accuracy and correct syntax. If context is missing or doesn't apply, use reasonable defaults based on the Nation Name and Description provided below the context. Prioritize guideline context for syntax questions.
 
 {rag_context_for_prompt}
-Task: Generate ONLY the core nation definition block AND definitions for 8 basic starting units (2 Commander, 1 mage, 1 priest, 4 troops). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands.
+Task: Generate the entire nation definition block AND 1 paragraph definitions for 8 basic starting units (2 Commander, 1 mage, 1 priest, 4 troops). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands. also add the weapons and armors in if creating new ones instead of using preexisting ones.
 
 Nation Name: {nation.name}
 Nation Description: {nation.description}
