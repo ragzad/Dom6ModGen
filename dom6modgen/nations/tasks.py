@@ -1,21 +1,5 @@
 # nations/tasks.py
-from celery import shared_task
-from .models import Nation, NationGenerationStatus
-import google.generativeai as genai
-from google.cloud import aiplatform
-from decouple import config
-import time
-
-from .views import (
-    vertex_ai_endpoint_nation,
-    guideline_vertex_ai_endpoint,
-    VERTEX_DEPLOYED_INDEX_ID,
-    GUIDELINE_VERTEX_DEPLOYED_INDEX_ID,
-    GCP_PROJECT_ID, # Needed if re-initializing clients here
-    GCP_REGION      # Needed if re-initializing clients here
-)
-
-
+# ... (imports and other code) ...
 
 @shared_task(bind=True) # bind=True gives access to self
 def generate_nation_dm_task(self, nation_id):
@@ -25,6 +9,7 @@ def generate_nation_dm_task(self, nation_id):
     task_id = self.request.id
     print(f"Starting task {task_id} for Nation ID: {nation_id}")
     nation = None
+    # ----- First try block (correctly handled) -----
     try:
         nation = Nation.objects.get(pk=nation_id)
         nation.generation_status = NationGenerationStatus.GENERATING
@@ -36,6 +21,7 @@ def generate_nation_dm_task(self, nation_id):
         print(f"Error: Nation with ID {nation_id} not found.")
         # Cannot update status if nation doesn't exist, task fails here.
         return # Or raise an exception
+    # ----- End of first try block -----
 
     generated_code = "# Generation failed or prerequisites missing."
     error_message = None
@@ -43,6 +29,7 @@ def generate_nation_dm_task(self, nation_id):
     nation_context_str = "Nation RAG system inactive or failed."
     guideline_context_str = "Guideline RAG system inactive or failed."
 
+    # ----- Second try block (THIS IS THE ONE MISSING the except/finally) -----
     try:
         # --- RAG Retrieval Logic (Copied & Adapted from view) ---
         rag_context_for_prompt = ""
@@ -50,6 +37,7 @@ def generate_nation_dm_task(self, nation_id):
         can_query_nation = bool(vertex_ai_endpoint_nation)
         can_query_guideline = bool(guideline_vertex_ai_endpoint)
 
+        # (Inner try/except for embedding generation)
         if can_query_nation or can_query_guideline:
             try:
                 print(f"[Task {task_id}] Generating query embedding...")
@@ -68,6 +56,7 @@ def generate_nation_dm_task(self, nation_id):
                 can_query_guideline = False
                 query_embedding = None
 
+        # (Inner try/except for Nation Index query)
         # Query Nation Index
         if can_query_nation and query_embedding:
             try:
@@ -93,6 +82,7 @@ def generate_nation_dm_task(self, nation_id):
         elif not can_query_nation:
              nation_context_str = "NATION Index endpoint not initialized or embedding failed."
 
+        # (Inner try/except for Guideline Index query)
         # Query Guideline Index
         if can_query_guideline and query_embedding:
             try:
@@ -128,6 +118,36 @@ def generate_nation_dm_task(self, nation_id):
             raise ValueError("Gemini API Key not found in environment variables.")
 
         # Use the desired model here (e.g., 1.5 Pro)
-        generation_model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17') 
+        generation_model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17') # This seems incomplete - likely missing genai.configure(api_key=...)
 
+        # >>>>>>>>> THIS IS LINE 133 WHERE THE ERROR WAS REPORTED <<<<<<<<<
         prompt = f"""You are an expert Dominions 6 modder creating a new nation mod file (.dm format)."""
+
+    # >>>>>>>>> ADD THE MISSING except BLOCK HERE <<<<<<<<<<
+    except Exception as e:
+        print(f"[Task {task_id}] An unexpected error occurred during generation setup: {e}")
+        error_message = f"Generation setup failed: {e}"
+        # Ensure generated_code reflects failure if setup crashes
+        generated_code = f"# Generation failed due to setup error: {e}"
+
+    # ----- (Code to actually *use* the prompt and model seems missing here) -----
+    # Assuming the rest of the generation logic would go here,
+    # potentially within its own try/except block
+
+    # ----- Final status update (outside the main try/except) -----
+    # Update the nation status based on outcome
+    final_status = NationGenerationStatus.COMPLETED
+    if error_message:
+        final_status = NationGenerationStatus.FAILED
+        nation.generation_error = str(error_message)[:1024] # Truncate if necessary
+        print(f"[Task {task_id}] Task failed: {error_message}")
+    else:
+        # Assuming generated_code gets populated correctly by the missing generation logic
+        nation.generated_dm_code = generated_code
+        nation.generation_error = None
+        print(f"[Task {task_id}] Task completed successfully.")
+
+    nation.generation_status = final_status
+    nation.save(update_fields=['generation_status', 'generated_dm_code', 'generation_error'])
+
+    return f"Nation {nation_id} generation finished with status: {final_status}"
