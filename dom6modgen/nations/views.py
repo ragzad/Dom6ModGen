@@ -297,7 +297,7 @@ def nation_generate_dm(request, pk):
             raise ValueError("Gemini API Key not found in environment variables.")
 
         # Choose the Gemini model to use (e.g., Flash or Pro).
-        generation_model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
+        generation_model = genai.GenerativeModel('gemini-2.5-pro-preview-03-25')
 
         # Build the big prompt with instructions and the retrieved context.
         prompt = f"""You are an expert Dominions 6 modder creating a new nation mod file (.dm format).
