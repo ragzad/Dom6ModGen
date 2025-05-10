@@ -3,26 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create New Nation</title>
+    {# Setting title based on create or update context #}
+    <title>{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Create New Nation{% endif %}</title>
 </head>
 <body>
-    <h1>Create a New Nation</h1>
+    {# Setting heading based on create or update context #}
+    <h1>{% if form.instance.pk %}Edit Nation: {{ form.instance.name }}{% else %}Create New Nation{% endif %}</h1>
 
-    {% comment %} The form tag needs method="post" to send data to the server {% endcomment %}
     <form method="post">
-        {% comment %} CRITICAL: csrf_token protects against cross-site request forgery attacks {% endcomment %}
+        {# Security token required by Django for POST forms #}
         {% csrf_token %}
 
-        {% comment %} Render the form fields. '.as_p' wraps each field in a <p> tag.
-                     Other options include .as_ul (for list items) or .as_table (for table rows),
-                     or looping through fields manually for full control. {% endcomment %}
+        {# Rendering form fields simply as paragraphs #}
         {{ form.as_p }}
 
-        <button type="submit">Save Nation</button>
+        {# Button text changes based on context #}
+        <button type="submit">{% if form.instance.pk %}Update Nation{% else %}Save Nation{% endif %}</button>
     </form>
 
     <hr>
-    <a href="{% url 'nations:nation_list' %}">Cancel and return to Nations List</a>
+    {# Cancel link goes back appropriately #}
+    {% if form.instance.pk %}
+        <a href="{% url 'nations:nation_detail' form.instance.pk %}">Cancel</a>
+    {% else %}
+        <a href="{% url 'nations:nation_list' %}">Cancel</a>
+    {% endif %}
 
 </body>
 </html>

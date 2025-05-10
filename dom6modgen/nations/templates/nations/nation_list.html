@@ -12,7 +12,7 @@
     <ul>
         {% for nation in nations %}
             <li>
-                {% comment %} Make the name a link to the detail page {% endcomment %}
+                {# Linking the nation name to its detail page #}
                 <a href="{% url 'nations:nation_detail' nation.pk %}">
                     {{ nation.name }}
                 </a>
@@ -21,9 +21,13 @@
             <li>No nations found. Add some via the admin interface!</li>
         {% endfor %}
     </ul>
-{% else %}
-    <p>No nations list was provided.</p>
-{% endif %}
+    {% else %}
+        <p>No nations list was provided.</p>
+    {% endif %}
+
+    {# Link to create a new nation #}
+    <hr>
+    <a href="{% url 'nations:nation_create' %}">Add New Nation</a>
 
 </body>
 </html>

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generated DM Code for {{ nation.name }}</title>
     <style>
+        /* Basic styling for code blocks */
         pre { background-color: #f4f4f4; border: 1px solid #ddd; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
         .error { color: red; font-weight: bold; }
         .prompt { background-color: #eef; border: 1px dashed #ccf; padding: 10px; margin-top: 20px; }
@@ -20,10 +21,18 @@
     <h2>Generated Code:</h2>
     <pre>{{ generated_code }}</pre>
 
+    {# Section to display the prompt used #}
     <div class="prompt">
         <h3>Prompt Sent to AI (for debugging):</h3>
         <pre>{{ prompt_used }}</pre>
     </div>
+
+    {# Section to display retrieved RAG context #}
+    <div class="prompt">
+        <h3>Retrieved Context Sent to AI (from Vector DB):</h3>
+        <pre>{{ retrieved_context|default:"(RAG Context Placeholder)" }}</pre>
+    </div>
+
 
     <hr>
     <a href="{% url 'nations:nation_detail' nation.pk %}">Back to {{ nation.name }} Details</a><br>
