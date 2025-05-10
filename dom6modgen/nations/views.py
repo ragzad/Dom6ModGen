@@ -1,130 +1,130 @@
-# nations/views.py
-# Where the nation-related views live.
+# Dom6ModGen/dom6modgen/nations/views.py
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import Nation
+from django.http import JsonResponse, HttpResponseBadRequest, Http404, HttpResponse
+from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.csrf import csrf_exempt # Using for simplicity in example. For production, ensure CSRF token is handled correctly by JS.
+import json
+import logging # For better server-side logging.
+import os # For API keys from environment
+
+# Your existing models and forms
+from .models import Nation, ModGenerationJob # Import ModGenerationJob
 from .forms import NationForm
 
-# Pull in libraries for AI stuff (Gemini and Vertex)
+# AI library imports
 import google.generativeai as genai
-from google.cloud import aiplatform
+from google.cloud import aiplatform # If you're still using Vertex AI for RAG
+from decouple import config # If you use python-decouple for env vars
 
-# Stuff needed to handle Google Cloud credentials from JSON.
-import json
-from google.oauth2 import service_account
-from decouple import config
-import os
-import numpy as np # Often needed by client libraries
+# --- Initialize a logger for this module ---
+logger = logging.getLogger(__name__)
 
-# --- Settings & API Keys ---
+# --- AI Model Configuration & Initialization ---
+# It's good practice to configure your API keys once, ideally when the app starts.
+# Your original views.py had this logic spread out, so centralizing parts of it.
 
-# Get the Gemini API Key from environment variables.
+# Attempt to configure Gemini API Key from environment variables.
 try:
-    GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
+    GEMINI_API_KEY = config('GEMINI_API_KEY', default=os.environ.get('GEMINI_API_KEY')) # Try decouple then os.environ
     if GEMINI_API_KEY:
         genai.configure(api_key=GEMINI_API_KEY)
-        print("Gemini API Key configured.")
+        logger.info("Gemini API Key configured successfully.")
     else:
-        print("WARN: GEMINI_API_KEY not found in environment. AI generation will fail.")
-except NameError:
-    # Fails gracefully if the Gemini library isn't installed.
-    print("WARN: google-generativeai library not found. Install it (pip install google-generativeai) to use AI features.")
+        logger.warning("GEMINI_API_KEY not found in environment. AI generation features will likely fail.")
 except Exception as e:
-    print(f"Error configuring Gemini API: {e}")
+    logger.error(f"Error configuring Gemini API: {e}")
 
-# --- Vertex AI Index Settings (from environment variables) ---
-GCP_PROJECT_ID = config('GCP_PROJECT_ID', default=None)
-GCP_REGION = config('GCP_REGION', default='europe-west3')
+# Define preferred models for different tasks.
+# Using "latest" can be good for updates but might introduce unexpected changes.
+# Consider pinning to specific versions for more stability, e.g., 'gemini-1.5-flash-001'
+PLANNING_MODEL_NAME = 'gemini-1.5-flash-latest' 
+COMPONENT_MODEL_NAME = 'gemini-1.5-flash-latest' 
 
-# ---- First Index (Nation Data) ----
-VERTEX_INDEX_ENDPOINT_ID = config('VERTEX_INDEX_ENDPOINT_ID', default='YOUR_ORIGINAL_ENDPOINT_ID_HERE')
-VERTEX_DEPLOYED_INDEX_ID = config('VERTEX_DEPLOYED_INDEX_ID', default='YOUR_ORIGINAL_DEPLOYED_ID_HERE')
+# Standard safety settings for Gemini. Adjust as needed.
+SAFETY_SETTINGS = [
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+]
 
-# ---- Second Index (Modding Guidelines) ----
-GUIDELINE_VERTEX_INDEX_ENDPOINT_ID = config('GUIDELINE_VERTEX_INDEX_ENDPOINT_ID', default='3238035355521253376')
-GUIDELINE_VERTEX_DEPLOYED_INDEX_ID = config('GUIDELINE_VERTEX_DEPLOYED_INDEX_ID', default='dom6modgen_guideline')
+# --- Vertex AI RAG Setup (from your original file, keep if needed for RAG) ---
+# GCP_PROJECT_ID = config('GCP_PROJECT_ID', default=None)
+# ... (rest of your Vertex AI setup if you intend to use it for RAG with components)
+# For this client-side example, RAG within each component call is simplified/omitted
+# in the `generate_component_view` prompt for brevity, but you can re-integrate it there.
 
-# --- Optional: Load Google Cloud Service Account Key ---
-# Tries to load credentials from a specific environment variable if it exists.
-GCP_SERVICE_ACCOUNT_JSON_STR = config('GCP_SERVICE_ACCOUNT_KEY_JSON', default=None)
-credentials = None # Initialize credentials variable
-if GCP_SERVICE_ACCOUNT_JSON_STR:
+def get_gemini_model(model_name_str):
+    """Helper to get a configured Gemini model instance."""
+    if not genai.API_KEY: # Check if API key was configured
+        logger.error("Gemini API Key not configured. Cannot get model.")
+        raise ValueError("Gemini API Key not found or not configured.")
+    return genai.GenerativeModel(model_name_str)
+
+def generate_with_gemini(model_name, prompt_text, is_json_output=False):
+    """
+    Handles interaction with the Gemini API for content generation.
+    This is a key function where you ask the AI to do its magic.
+    It includes basic error handling and an option for JSON output.
+    """
     try:
-        # Parse the JSON key.
-        key_info = json.loads(GCP_SERVICE_ACCOUNT_JSON_STR)
-        # Make credentials object.
-        credentials = service_account.Credentials.from_service_account_info(key_info)
-        print("Loaded Service Account credentials from GCP_SERVICE_ACCOUNT_KEY_JSON.")
-    except json.JSONDecodeError:
-        print("ERROR: GCP_SERVICE_ACCOUNT_KEY_JSON environment variable contains invalid JSON.")
-    except Exception as cred_err:
-        print(f"ERROR loading credentials from GCP_SERVICE_ACCOUNT_KEY_JSON: {cred_err}")
-# If not found, it'll try default Google credentials later when aiplatform.init is called.
+        model = get_gemini_model(model_name)
+        # Log a snippet of the prompt to help with debugging.
+        logger.info(f"Sending prompt to Gemini model {model_name} (JSON output: {is_json_output}). Prompt snippet:\n{prompt_text[:500]}...")
+        
+        generation_config = None
+        if is_json_output:
+            # Newer Gemini versions support a direct JSON response mode.
+            try:
+                 generation_config = genai.types.GenerationConfig(response_mime_type="application/json")
+                 logger.info("Attempting to use response_mime_type='application/json'.")
+            except Exception as e:
+                logger.warning(f"Could not set response_mime_type to application/json for model {model_name}: {e}. Will proceed with text and parse.")
 
-# Setup the main Vertex AI connection (once per app load).
-try:
-    if not GCP_PROJECT_ID:
-         print("WARN: GCP_PROJECT_ID not configured. Vertex AI initialization skipped.")
-    else:
-        print("Initializing Vertex AI Platform client library...")
-        aiplatform.init(
-            project=GCP_PROJECT_ID,
-            location=GCP_REGION,
-            credentials=credentials # Pass the loaded credentials object (None if not loaded)
+        response = model.generate_content(
+            prompt_text,
+            generation_config=generation_config,
+            safety_settings=SAFETY_SETTINGS # Apply safety settings
         )
-        print(f"Vertex AI library initialized for project {GCP_PROJECT_ID} in {GCP_REGION}.")
-except ImportError:
-    print("ERROR: google-cloud-aiplatform library not found. Run pip install google-cloud-aiplatform")
-except Exception as init_err:
-    print(f"ERROR initializing Vertex AI library: {init_err}")
 
-# Get ready to talk to our specific search indices.
-vertex_ai_endpoint_nation = None
-guideline_vertex_ai_endpoint = None
+        # It's crucial to check if the response was blocked or empty.
+        if not response.parts:
+             logger.warning(f"Gemini response for model {model_name} was empty or blocked. Feedback: {response.prompt_feedback}")
+             if response.prompt_feedback and response.prompt_feedback.block_reason:
+                 # Provide a more user-friendly message if blocked.
+                 raise ValueError(f"AI content generation blocked: {response.prompt_feedback.block_reason_message or response.prompt_feedback.block_reason.name}")
+             raise ValueError("AI returned an empty response (no parts).")
 
-# ---- Connect to the Nation Data Index Endpoint ----
-try:
-    # Make sure we have the IDs needed for the nation index.
-    if not all([GCP_PROJECT_ID, GCP_REGION, VERTEX_INDEX_ENDPOINT_ID, VERTEX_DEPLOYED_INDEX_ID]) or \
-       'YOUR_' in VERTEX_INDEX_ENDPOINT_ID or 'YOUR_' in VERTEX_DEPLOYED_INDEX_ID:
-        print("WARN: Missing config for NATION index. Nation RAG won't work.")
-    else:
-        print(f"Creating NATION index endpoint reference: {VERTEX_INDEX_ENDPOINT_ID}")
-        # Create an object to represent the nation index endpoint.
-        vertex_ai_endpoint_nation = aiplatform.MatchingEngineIndexEndpoint(
-            index_endpoint_name=VERTEX_INDEX_ENDPOINT_ID
-        )
-        print(f"Vertex AI NATION Matching Engine endpoint reference created: {VERTEX_INDEX_ENDPOINT_ID}")
-except NameError: # Handles case where Vertex library is missing.
-     print("ERROR: Cannot create NATION endpoint reference - aiplatform library likely missing.")
-except Exception as e:
-    # Catch any other setup problems for the nation endpoint.
-    print(f"ERROR initializing Vertex AI NATION endpoint ({VERTEX_INDEX_ENDPOINT_ID}): {e}")
-    vertex_ai_endpoint_nation = None
+        generated_text = response.text # Get the text content.
+        logger.info(f"Received response from Gemini model {model_name}. Text snippet:\n{generated_text[:500]}...")
 
-# ---- Connect to the Modding Guideline Index Endpoint ----
-try:
-    # Make sure we have the IDs needed for the guideline index.
-    if not all([GCP_PROJECT_ID, GCP_REGION, GUIDELINE_VERTEX_INDEX_ENDPOINT_ID, GUIDELINE_VERTEX_DEPLOYED_INDEX_ID]) or \
-       'YOUR_' in GUIDELINE_VERTEX_INDEX_ENDPOINT_ID or 'YOUR_' in GUIDELINE_VERTEX_DEPLOYED_INDEX_ID:
-        print("WARN: Missing config for GUIDELINE index. Guideline RAG won't work.")
-    else:
-        print(f"Creating GUIDELINE index endpoint reference: {GUIDELINE_VERTEX_INDEX_ENDPOINT_ID}")
-        # Create an object to represent the guideline index endpoint.
-        guideline_vertex_ai_endpoint = aiplatform.MatchingEngineIndexEndpoint(
-            index_endpoint_name=GUIDELINE_VERTEX_INDEX_ENDPOINT_ID
-        )
-        print(f"Vertex AI GUIDELINE Matching Engine endpoint reference created: {GUIDELINE_VERTEX_INDEX_ENDPOINT_ID}")
-except NameError: # Handles case where Vertex library is missing.
-     print("ERROR: Cannot create GUIDELINE endpoint reference - aiplatform library likely missing.")
-except Exception as e:
-    # Catch any other setup problems for the guideline endpoint.
-    print(f"ERROR initializing Vertex AI GUIDELINE endpoint ({GUIDELINE_VERTEX_INDEX_ENDPOINT_ID}): {e}")
-    guideline_vertex_ai_endpoint = None
-# --- End Settings ---
+        if is_json_output:
+            # If we asked for JSON, try to parse it.
+            # Sometimes the model might still wrap JSON in markdown even with mime_type.
+            if generated_text.strip().startswith("```json"):
+                logger.info("Detected JSON wrapped in markdown, attempting to strip.")
+                generated_text = generated_text.strip()[7:] # Remove ```json
+                if generated_text.strip().endswith("```"):
+                    generated_text = generated_text.strip()[:-3] # Remove ```
+            return json.loads(generated_text.strip()) # Parse the cleaned text.
+        return generated_text.strip() # For non-JSON, just return the stripped text.
 
+    except json.JSONDecodeError as e:
+        logger.error(f"JSONDecodeError for model {model_name} when expecting JSON: {e}. Raw text received: {generated_text}")
+        raise ValueError(f"AI did not return valid JSON. Error: {e}. Check logs for raw output.")
+    except ValueError as ve: # Catch our specific ValueErrors or those from Gemini library
+        logger.error(f"ValueError during Gemini call with model {model_name}: {ve}")
+        raise # Re-raise to be caught by the calling view.
+    except Exception as e:
+        # Catch-all for other unexpected issues during the API call.
+        logger.error(f"Generic exception during Gemini call with model {model_name}: {e}", exc_info=True)
+        # Try to get more detailed error from response if it exists (e.g. safety blocks not caught above)
+        if 'response' in locals() and hasattr(response, 'prompt_feedback') and response.prompt_feedback.block_reason:
+             raise ValueError(f"AI content generation failed or was blocked: {response.prompt_feedback.block_reason_message or response.prompt_feedback.block_reason.name}")
+        raise ValueError(f"An unexpected error occurred with the AI model: {e}")
 
 # --- Standard Django Views (List, Detail, Create, Update, Delete) ---
-# These handle the basic web pages for nations.
+# These are your existing views for managing Nations.
 def nation_list(request):
     nations = Nation.objects.all().order_by('name')
     context = { 'nations': nations }
@@ -132,8 +132,10 @@ def nation_list(request):
 
 def nation_detail(request, pk):
     nation = get_object_or_404(Nation, pk=pk)
-    context = { 'nation': nation }
-    return render(request, 'nations/nation_detail.html', context)
+    # For the detail page, you might want to show existing generation jobs for this nation
+    jobs = ModGenerationJob.objects.filter(nation=nation).order_by('-created_at')
+    context = { 'nation': nation, 'mod_jobs': jobs }
+    return render(request, 'nations/nation_detail.html', context) # Assuming nation_detail.html can show jobs
 
 def nation_create(request):
     if request.method == 'POST':
@@ -166,691 +168,516 @@ def nation_delete(request, pk):
     context = { 'nation': nation }
     return render(request, 'nations/nation_confirm_delete.html', context)
 
+# --- Views for Interactive, Client-Side Orchestrated Mod Generation ---
 
-# --- AI Generation View (Using RAG) ---
-def nation_generate_dm(request, pk):
-    """Generates Dominions 6 mod code using RAG with two indices + Gemini."""
+def nation_generate_interactive_page(request, pk):
+    """
+    Renders the HTML page that contains the JavaScript for interactive generation.
+    This page will be the main interface for the user to start and monitor the process.
+    """
     nation = get_object_or_404(Nation, pk=pk)
-    # Set some defaults in case things go wrong.
-    generated_code = "# Generation failed or prerequisites missing."
-    error_message = None
-    prompt_used = ""
-    # Default text for nation context.
-    nation_context_str = "Nation RAG system inactive or failed."
-    # Default text for guideline context.
-    guideline_context_str = "Guideline RAG system inactive or failed."
-    combined_retrieved_context_display = f"Nation Context:\n{nation_context_str}\n\nGuideline Context:\n{guideline_context_str}"
-
-    # Flags to check if we can actually query the indices.
-    # Initialize based on whether the endpoint objects were created successfully at startup
-    can_query_nation = bool(vertex_ai_endpoint_nation)
-    can_query_guideline = bool(guideline_vertex_ai_endpoint)
-    query_embedding = None # Ensure defined before try block
-
-    try:
-        # --- RAG Step: Get Context from Vertex AI ---
-        # We'll build the context for the AI prompt here.
-        rag_context_for_prompt = ""
-
-        # Only try embedding if at least one index connection is ready.
-        if can_query_nation or can_query_guideline:
-            try:
-                print("Generating query embedding using Gemini...")
-                query_text = f"{nation.name} {nation.description}"
-                # Turn the nation name/description into a vector using Gemini.
-                # Make sure this embedding model matches the one used for indexing!
-                query_embedding_response = genai.embed_content(
-                    model="models/embedding-001", # Or text-embedding-004 etc.
-                    content=query_text,
-                    task_type="RETRIEVAL_QUERY"
-                )
-                query_embedding = query_embedding_response['embedding']
-                print("Query embedding generated.")
-
-            except Exception as embed_e:
-                print(f"Error generating query embedding: {embed_e}")
-                error_message = f"Failed to generate query embedding: {embed_e}"
-                # Can't search without the embedding vector.
-                # Mark indices as unavailable if embedding failed.
-                can_query_nation = False
-                can_query_guideline = False
-                query_embedding = None # Ensure embedding is None if it failed
-
-        # ---- Search the Nation Index ----
-        # Check if we can query this index (and have an embedding).
-        if can_query_nation and query_embedding:
-            try:
-                # Use the global vertex_ai_endpoint_nation directly
-                print(f"Querying NATION Index Endpoint: {VERTEX_INDEX_ENDPOINT_ID} with Deployed Index ID: {VERTEX_DEPLOYED_INDEX_ID}...")
-                NUM_NEIGHBORS = 5 # How many results to fetch.
-                nation_response = vertex_ai_endpoint_nation.find_neighbors(
-                    queries=[query_embedding],
-                    deployed_index_id=VERTEX_DEPLOYED_INDEX_ID,
-                    num_neighbors=NUM_NEIGHBORS
-                )
-
-                retrieved_docs_info_nation = []
-                if nation_response and nation_response[0]:
-                    print(f"Received {len(nation_response[0])} neighbors from NATION Index.")
-                    # TODO: If index stores full text, fetch it here based on neighbor.id
-                    for neighbor in nation_response[0]:
-                        retrieved_docs_info_nation.append(f"Nation ID: {neighbor.id} (Distance: {neighbor.distance:.4f})")
-                    nation_context_str = "\n".join(retrieved_docs_info_nation)
-                else:
-                     nation_context_str = "No relevant neighbors found in NATION Index."
-                     print("WARN: No relevant neighbors found in NATION Index query.")
-
-            except Exception as nation_rag_e:
-                print(f"Error during NATION Index RAG retrieval: {nation_rag_e}")
-                nation_context_str = f"Error during NATION Index retrieval: {nation_rag_e}"
-                if not error_message: error_message = "Failed to retrieve context from Nation Index."
-        # Explain why the query was skipped.
-        elif not can_query_nation:
-             nation_context_str = "NATION Index endpoint not initialized or embedding failed."
-             print("WARN: Skipping NATION RAG query due to initialization or embedding failure.")
-
-
-        # ---- Search the Guideline Index ----
-        # Check if we can query this index (and have an embedding).
-        if can_query_guideline and query_embedding:
-            try:
-                # Use the global guideline_vertex_ai_endpoint directly
-                print(f"Querying GUIDELINE Index Endpoint: {GUIDELINE_VERTEX_INDEX_ENDPOINT_ID} with Deployed Index ID: {GUIDELINE_VERTEX_DEPLOYED_INDEX_ID}...")
-                NUM_NEIGHBORS_GUIDELINE = 3 # How many results to fetch (can be different).
-                guideline_response = guideline_vertex_ai_endpoint.find_neighbors(
-                    queries=[query_embedding],
-                    deployed_index_id=GUIDELINE_VERTEX_DEPLOYED_INDEX_ID,
-                    num_neighbors=NUM_NEIGHBORS_GUIDELINE
-                )
-
-                retrieved_docs_info_guideline = []
-                if guideline_response and guideline_response[0]:
-                    print(f"Received {len(guideline_response[0])} neighbors from GUIDELINE Index.")
-                    # TODO: If index stores full text, fetch it here based on neighbor.id
-                    for neighbor in guideline_response[0]:
-                        retrieved_docs_info_guideline.append(f"Guideline ID: {neighbor.id} (Distance: {neighbor.distance:.4f})")
-                    guideline_context_str = "\n".join(retrieved_docs_info_guideline)
-                else:
-                     guideline_context_str = "No relevant neighbors found in GUIDELINE Index."
-                     print("WARN: No relevant neighbors found in GUIDELINE Index query.")
-
-            except Exception as guideline_rag_e:
-                print(f"Error during GUIDELINE Index RAG retrieval: {guideline_rag_e}")
-                guideline_context_str = f"Error during GUIDELINE Index retrieval: {guideline_rag_e}"
-                if not error_message: error_message = "Failed to retrieve context from Guideline Index."
-        # Explain why the query was skipped.
-        elif not can_query_guideline:
-             guideline_context_str = "GUIDELINE Index endpoint not initialized or embedding failed."
-             print("WARN: Skipping GUIDELINE RAG query due to initialization or embedding failure.")
-
-        # ---- Combine Retrieved Info ----
-        # Prepare the context string for the main Gemini prompt.
-        rag_context_for_prompt = f"Retrieved Relevant Context (Context lookup pending):\n\n--- Nation Data Context ---\n{nation_context_str}\n\n--- Modding Guideline Context ---\n{guideline_context_str}\n\n"
-
-        # Prepare a combined string to show the user what context was found.
-        combined_retrieved_context_display = f"Nation Context:\n```\n{nation_context_str}\n```\n\nGuideline Context:\n```\n{guideline_context_str}\n```"
-
-
-        # --- Generation Step: Ask Gemini ---
-        loaded_api_key = config('GEMINI_API_KEY', default=None)
-        if not loaded_api_key:
-            raise ValueError("Gemini API Key not found in environment variables.")
-
-        # Choose the Gemini model to use (e.g., Flash or Pro).
-        generation_model = genai.GenerativeModel('gemini-2.0-flash')
-
-        # Build the big prompt with instructions and the retrieved context.
-        prompt = f"""You are an expert Dominions 6 modder creating a new nation mod file (.dm format).
-Use the following retrieved game data context (Nation Data) and modding guideline context (Guideline Data) to ensure accuracy and correct syntax. If context is missing or doesn't apply, use reasonable defaults based on the Nation Name and Description provided below the context. Prioritize guideline context for syntax questions.
-
-{rag_context_for_prompt}
-Task: Generate the entire nation definition block AND 1 paragraph definitions for 8 basic starting units (2 Commander, 1 mage, 1 priest, 4 troops). Start the nation block exactly with '#newnation' and end it exactly with '#end'. Start each unit block exactly with '#newmonster' and end it exactly with '#end'. Do not include explanations or markdown formatting outside the required commands. also add the weapons and armors in if creating new ones instead of using preexisting ones.
-
-Nation Name: {nation.name}
-Nation Description: {nation.description}
-
-Output only the raw .dm commands ensuring to query the RAG databases to stay consistent with syntax and proper and contextual ID usage.
-
-Also adhering to the following template
-
-#modname "MyNewNation Mod"
-#description "Autogenerated mod for the nation of MyNewNation, based on the description: A description of MyNewNation."
-#version 1.0
-#domversion 6.28 -- Specify the target Dominions 6 version
-#icon "MYNEWNATION_icon.tga" -- Placeholder icon, required for mod visibility in list
-
--- =============================================================================
--- MONSTER DEFINITIONS (Units & Commanders)
--- ID Range: 5000-8999
--- =============================================================================
-
--- == Units ==
-
--- Unit Summary:
--- ID: 5000
--- Name: MyNewNation Militia
--- Role: Basic Chaff Infantry
--- Cost: G:10 R:10 RP:1
--- Stats: HP:10 Prot:2 MR:10 Att:10 Def:10 Mor:10
--- Abilities: Standard Human
-#newmonster 5000
-#name "MyNewNation Militia"
-#descr "Basic militia levied from the populace. Poorly equipped but numerous."
-#spr1 "MYNEWNATION_militia_sprite.tga"
-#spr2 "MYNEWNATION_militia_attack_sprite.tga"
--- Core Stats
-#hp 10
-#str 10
-#att 10
-#def 10
-#prec 10
-#prot 2 -- Light protection from basic gear
-#mr 10
-#mor 10
-#enc 3 -- Standard enc for light infantry
-#mapmove 16
-#ap 20 -- Standard combat speed
-#size 2
--- Costs
-#gcost 10
-#rcost 10
-#rpcost 1
--- Abilities & Slots
-#noleader
-#itemslots 6 -- Two hands, head, body, feet, misc
-#bodytype human
-#standard 10 -- Basic standard bearer effect
--- Equipment
-#weapon "Spear" -- Standard militia weapon
-#armor "Leather Cap"
-#armor "Leather Armor"
-#end
-
--- Unit Summary:
--- ID: 5001
--- Name: MyNewNation Archer
--- Role: Basic Ranged Support
--- Cost: G:12 R:8 RP:1
--- Stats: HP:10 Prot:1 MR:10 Att:9 Def:8 Prec:11 Mor:10
--- Abilities: Standard Human
-#newmonster 5001
-#name "MyNewNation Archer"
-#descr "Archers providing ranged support, lightly armored."
-#spr1 "MYNEWNATION_archer_sprite.tga"
-#spr2 "MYNEWNATION_archer_attack_sprite.tga"
--- Core Stats
-#hp 10
-#str 10
-#att 9
-#def 8
-#prec 11 -- Slightly better precision for archers
-#prot 1 -- Very light protection
-#mr 10
-#mor 10
-#enc 3
-#mapmove 16
-#ap 20
-#size 2
--- Costs
-#gcost 12
-#rcost 8
-#rpcost 1
--- Abilities & Slots
-#noleader
-#itemslots 6
-#bodytype human
--- Equipment
-#weapon "Short Bow"
-#weapon "Dagger" -- Melee backup
-#armor "Leather Cap"
-#end
-
--- Unit Summary:
--- ID: 5002
--- Name: MyNewNation Heavy Infantry
--- Role: Mainline Heavy Infantry
--- Cost: G:15 R:20 RP:2
--- Stats: HP:12 Prot:10 MR:11 Att:11 Def:11 Mor:12
--- Abilities: Standard Human
-#newmonster 5002
-#name "MyNewNation Heavy Infantry"
-#descr "Well-equipped heavy infantry forming the core of the army."
-#spr1 "MYNEWNATION_heavyinf_sprite.tga"
-#spr2 "MYNEWNATION_heavyinf_attack_sprite.tga"
--- Core Stats
-#hp 12
-#str 11
-#att 11
-#def 11
-#prec 10
-#prot 10 -- Decent protection
-#mr 11
-#mor 12
-#enc 5 -- Higher enc due to heavier gear
-#mapmove 14 -- Slower map move
-#ap 22 -- Slightly slower combat speed
-#size 2
--- Costs
-#gcost 15
-#rcost 20
-#rpcost 2
--- Abilities & Slots
-#noleader
-#itemslots 6
-#bodytype human
-#standard 10
--- Equipment
-#weapon "Broad Sword"
-#weapon "Medium Shield"
-#armor "Helmet"
-#armor "Chain Mail Hauberk"
-#end
-
--- Unit Summary:
--- ID: 5003
--- Name: MyNewNation Sacred Guard
--- Role: Elite Sacred Infantry
--- Cost: G:25 R:25 RP:3 Holy:1
--- Stats: HP:14 Prot:12 MR:13 Att:12 Def:12 Mor:14
--- Abilities: Sacred, Standard Human
-#newmonster 5003
-#name "MyNewNation Sacred Guard"
-#descr "Elite warriors dedicated to the nation's god, heavily armed and armored."
-#spr1 "MYNEWNATION_sacred_sprite.tga"
-#spr2 "MYNEWNATION_sacred_attack_sprite.tga"
--- Core Stats
-#hp 14
-#str 12
-#att 12
-#def 12
-#prec 10
-#prot 12 -- Good protection
-#mr 13
-#mor 14
-#enc 6
-#mapmove 14
-#ap 24
-#size 2
--- Costs
-#gcost 25
-#rcost 25
-#rpcost 3
-#holycost 1 -- Cost 1 Holy Point (used in prophet turns)
--- Abilities & Slots
-#holy -- Sacred Unit
-#noleader
-#itemslots 6
-#bodytype human
-#standard 10
--- Equipment
-#weapon "Great Sword"
-#armor "Full Helmet"
-#armor "Plate Hauberk"
-#end
-
--- == Commanders ==
-
--- Commander Summary:
--- ID: 5004
--- Name: MyNewNation Scout
--- Role: Basic Scout
--- Cost: G:30 R:5 RP:1
--- Stats: HP:10 Prot:1 MR:10 Att:8 Def:8 Mor:10
--- Abilities: Stealthy, Survival Skills, Poor Leader
-#newmonster 5004
-#name "MyNewNation Scout"
-#descr "A scout used for exploring provinces and spying."
-#spr1 "MYNEWNATION_scout_sprite.tga"
-#spr2 "MYNEWNATION_scout_attack_sprite.tga"
--- Core Stats
-#hp 10
-#str 9
-#att 8
-#def 8
-#prec 10
-#prot 1
-#mr 10
-#mor 10
-#enc 3
-#mapmove 20 -- High map movement
-#ap 20
-#size 2
--- Costs
-#gcost 30
-#rcost 5
-#rpcost 1
--- Abilities & Slots
-#poorleader -- Can lead 10 troops
-#itemslots 6
-#bodytype human
-#stealthy 50 -- Standard stealth
-#forestsurvival
-#mountainsurvival
-#swampsurvival
-#spy
--- Equipment
-#weapon "Dagger"
-#end
-
--- Commander Summary:
--- ID: 5005
--- Name: MyNewNation Commander
--- Role: Basic Troop Leader
--- Cost: G:50 R:15 RP:1
--- Stats: HP:12 Prot:10 MR:11 Att:11 Def:11 Mor:12
--- Abilities: Standard Human, Good Leader
-#newmonster 5005
-#name "MyNewNation Commander"
-#descr "A standard commander capable of leading troops into battle."
-#spr1 "MYNEWNATION_commander_sprite.tga"
-#spr2 "MYNEWNATION_commander_attack_sprite.tga"
--- Core Stats
-#hp 12
-#str 11
-#att 11
-#def 11
-#prec 10
-#prot 10
-#mr 11
-#mor 12
-#enc 5
-#mapmove 14
-#ap 22
-#size 2
--- Costs
-#gcost 50
-#rcost 15
-#rpcost 1
--- Abilities & Slots
-#goodleader -- Can lead 80 troops
-#itemslots 6
-#bodytype human
-#standard 10
--- Equipment
-#weapon "Broad Sword"
-#weapon "Medium Shield"
-#armor "Helmet"
-#armor "Chain Mail Hauberk"
-#end
-
--- Commander Summary:
--- ID: 5006
--- Name: MyNewNation Priest
--- Role: Basic Priest / Holy Caster
--- Cost: G:60 R:10 RP:1
--- Stats: HP:10 Prot:2 MR:12 Att:9 Def:9 Mor:13
--- Abilities: Standard Human, Priest (H1), Ok Leader
-#newmonster 5006
-#name "MyNewNation Priest"
-#descr "A priest spreading the faith and leading sacred troops."
-#spr1 "MYNEWNATION_priest_sprite.tga"
-#spr2 "MYNEWNATION_priest_attack_sprite.tga"
--- Core Stats
-#hp 10
-#str 9
-#att 9
-#def 9
-#prec 10
-#prot 2
-#mr 12
-#mor 13
-#enc 3
-#mapmove 16
-#ap 20
-#size 2
--- Costs
-#gcost 60
-#rcost 10
-#rpcost 1
--- Abilities & Slots
-#okleader -- Can lead 40 troops
-#itemslots 6
-#bodytype human
-#magicskill 9 1 -- Priest Level 1 (Holy Path)
-#spreaddom 1 -- Spreads dominion
--- Equipment
-#weapon "Mace"
-#armor "Leather Armor"
-#reqtemple -- Requires a temple to recruit
-#end
-
--- Commander Summary:
--- ID: 5007
--- Name: MyNewNation Mage
--- Role: Basic Research/Battle Mage
--- Cost: G:110 R:10 RP:2
--- Stats: HP:10 Prot:2 MR:13 Att:9 Def:9 Mor:11
--- Abilities: Standard Human, Mage (e.g., F1/A1), Ok Leader
-#newmonster 5007
-#name "MyNewNation Mage"
-#descr "A mage capable of research and casting minor spells."
-#spr1 "MYNEWNATION_mage_sprite.tga"
-#spr2 "MYNEWNATION_mage_attack_sprite.tga"
--- Core Stats
-#hp 10
-#str 9
-#att 9
-#def 9
-#prec 10
-#prot 2
-#mr 13
-#mor 11
-#enc 3
-#mapmove 16
-#ap 20
-#size 2
--- Costs
-#gcost 110 -- Standard cost for a basic 1-path mage
-#rcost 10
-#rpcost 2
--- Abilities & Slots
-#okleader
-#itemslots 6
-#bodytype human
-#magicskill 0 1 -- Example: Fire 1 (Path 0)
-#magicskill 1 1 -- Example: Air 1 (Path 1) - Adjust paths based on inferred theme
--- Equipment
-#weapon "Quarterstaff"
-#armor "Leather Armor"
-#reqlab -- Requires a lab to recruit
-#end
-
--- Commander Summary:
--- ID: 5008
--- Name: MyNewNation Sacred Commander
--- Role: Leader of Sacreds, Higher Priest
--- Cost: G:150 R:25 RP:2
--- Stats: HP:14 Prot:12 MR:14 Att:12 Def:12 Mor:15
--- Abilities: Sacred, Standard Human, Priest (H2), Good Leader, Inspirational
-#newmonster 5008
-#name "MyNewNation Sacred Commander"
-#descr "An inspiring leader of sacred troops and a more powerful priest."
-#spr1 "MYNEWNATION_sacredcom_sprite.tga"
-#spr2 "MYNEWNATION_sacredcom_attack_sprite.tga"
--- Core Stats
-#hp 14
-#str 12
-#att 12
-#def 12
-#prec 10
-#prot 12
-#mr 14
-#mor 15
-#enc 6
-#mapmove 14
-#ap 24
-#size 2
--- Costs
-#gcost 150
-#rcost 25
-#rpcost 2
--- Abilities & Slots
-#holy -- Sacred Unit
-#goodleader
-#inspirational 1 -- +1 Morale to led troops
-#itemslots 6
-#bodytype human
-#magicskill 9 2 -- Priest Level 2 (Holy Path)
-#spreaddom 1
--- Equipment
-#weapon "Mace" -- Or thematic holy weapon
-#armor "Full Helmet"
-#armor "Plate Hauberk"
-#reqtemple
-#end
-
--- =============================================================================
--- NATION DEFINITION
--- ID Range: 150+
--- =============================================================================
-
-#newnation 150 -- Assigning the first mod nation ID
-#name "MyNewNation"
-#epithet "The Placeholder Kingdom" -- Generic epithet
-#era 2 -- Defaulting to Middle Age (1=EA, 2=MA, 3=LA)
-#descr "A description of MyNewNation." -- User provided description
-#summary "A generic nation template with basic infantry, archers, and commanders. Features sacred guards and basic mages/priests."
-#brief "Generic MA Nation Template"
-#color 0.6 0.6 0.6 -- Neutral grey color
-#secondarycolor 0.8 0.8 0.8 -- Lighter grey secondary
-#flag "MYNEWNATION_flag.tga" -- Placeholder flag
-#homerealm 10 -- Defaulting to Magic realm (adjust based on theme)
-#likesterr 1 -- Likes Plains (bitmask 1)
-#idealcold 0 -- Neutral temperature preference
-
--- Recruitment List (Linking defined monsters)
-#clearrec -- Ensure vanilla units aren't recruitable by default
-#addrecunit "MyNewNation Militia" -- ID 5000
-#addrecunit "MyNewNation Archer" -- ID 5001
-#addrecunit "MyNewNation Heavy Infantry" -- ID 5002
-#addrecunit "MyNewNation Sacred Guard" -- ID 5003
-
-#addreccom "MyNewNation Scout" -- ID 5004
-#addreccom "MyNewNation Commander" -- ID 5005
-#addreccom "MyNewNation Priest" -- ID 5006
-#addreccom "MyNewNation Mage" -- ID 5007
-#addreccom "MyNewNation Sacred Commander" -- ID 5008
-
--- Starting Army
-#startcom "MyNewNation Commander" -- Start with a basic commander (ID 5005)
-#startunit "MyNewNation Militia" 20 -- Start with some basic troops
-#startunit "MyNewNation Heavy Infantry" 10 -- Start with some better troops
-#startunit "MyNewNation Archer" 10 -- Start with some archers
-
--- Forts & Buildings (Using defaults unless theme suggests otherwise)
-#homefort 1 -- Standard Palisade
-#buildfort 1 -- Builds Palisades by default
-
--- Pretender God List (Add thematic choices based on inference)
-#cleargods -- Remove default realm gods
-#addgod "Father of Monsters" -- Example: Generic Monster Pretender (ID 24)
-#addgod "Arch Mage" -- Example: Generic Mage Pretender (ID 251)
-#addgod "Oracle" -- Example: Generic Priest/Astral Pretender (ID 272)
-#addgod "Virtue" -- Example: Generic Immobile Pretender (ID 268)
--- #addgod "[Custom Pretender Monster Name/ID]" -- Add custom pretenders here if defined
--- Custom pretenders must have #pathcost and #startdom defined in their monster block.
-
--- National Settings/Bonuses (Add based on inference)
--- Example: #castleprod 10 -- 10% resource bonus in castles
--- Example: #holyfire -- Priests smite with holy fire
-
-#end -- End of nation definition
-
--- =============================================================================
--- (Optional) CUSTOM SPELLS / ITEMS / SITES / EVENTS
--- Define below if strongly inferred from description and theme.
--- Remember load order: Spells -> Items -> General -> Poptypes -> Mercs -> Events
--- Ensure spells/items use #restricted [Nation ID] (e.g., #restricted 150)
--- Ensure sites use #nat [Nation ID] for nation-specific recruitment
--- =============================================================================
-
--- Example Custom Site (if inferred)
--- #newsite 1500 -- Use Site IDs 1500-1999
--- #name "Sacred Grove of MyNewNation"
--- #level 6 1 -- Found by N1 mages
--- #rarity 50
--- #path 6 1 -- Provides 1 Nature Gem
--- #descr "A grove sacred to the people of MyNewNation."
--- #nat 150 -- Link to our nation ID
--- #natcom "MyNewNation Priest" -- Allow recruiting national priest here
--- #end
--- (Remember to add #startsite "Sacred Grove of MyNewNation" in the nation block above)
-
--- Example Custom Spell (if inferred)
--- #newspell -- Spell IDs automatically assigned or use 1300+
--- #name "Blessing of MyNewNation"
--- #descr "A divine blessing unique to MyNewNation's priests."
--- #school 7 -- Divine School
--- #path 0 9 -- Holy Path
--- #level 1 -- H1 required
--- #fatiguecost 100
--- #range 0 -- Self
--- #aoe 1 -- Caster Only
--- #effect 10 -- Bless effect
--- #restricted 150 -- Make it national
--- #end
-
--- Example Custom Item (if inferred)
--- #newitem 500 -- Use Item IDs 500+
--- #name "Amulet of MyNewNation"
--- #descr "An amulet granting minor protection, crafted only by MyNewNation."
--- #constlevel 2 -- Construction 2
--- #mainpath 3 -- Earth Path
--- #mainlevel 1 -- E1 required
--- #gems 5 -- Costs 5 Earth gems
--- #type 3 -- Misc Item slot
--- #prot 1 -- Grants +1 protection
--- #restricted 150 -- Make it national
--- #end
-
-"""
-        # Keep a copy of the prompt for debugging.
-        prompt_used = prompt
-
-        print("Attempting to call Gemini API for generation...")
-        # Send the prompt to the Gemini API.
-        generation_response = generation_model.generate_content(prompt)
-        print("Gemini API generation call completed.")
-
-        # Handle the response from Gemini.
-        try:
-            generated_code = generation_response.text
-            if not generated_code.strip(): generated_code = "# Error: AI response was empty."
-        except ValueError:
-             # Check if the response was blocked (safety filters).
-             generated_code = f"# Error: AI response blocked or invalid."
-             try: error_message = f"AI Response Feedback: {generation_response.prompt_feedback}"
-             except Exception: error_message = "AI response blocked or invalid, feedback unavailable."
-        except Exception as resp_err:
-             # Catch other problems reading the response.
-             generated_code = f"# Error: Could not parse AI response."
-             error_message = f"Error processing AI response: {resp_err}"
-
-    # --- General Error Handling for the View ---
-    except ValueError as ve:
-        # Catch config issues (like missing API keys).
-        print(f"Configuration Error: {ve}")
-        error_message = str(ve)
-        generated_code = f"Error: Configuration problem ({ve}). Check environment variables."
-    except NameError as ne:
-         # Catch missing Python libraries.
-         print(f"NameError: {ne}. Required library missing or import failed?")
-         error_message = f"Required library not available ({ne}). Please run pip install."
-         generated_code = "Error: Required library missing."
-    except Exception as e:
-        # Catch any other unexpected errors.
-        print(f"Error during generation view: {e}")
-        error_message = f"An error occurred: {e}"
-        generated_code = f"Error: Could not generate code ({e})."
-
-    # Gather everything to send to the results page.
     context = {
         'nation': nation,
-        'generated_code': generated_code,
-        'error_message': error_message,
-        'prompt_used': prompt_used,
-        # Send the retrieved context (or errors) to the template.
-        'retrieved_context': combined_retrieved_context_display,
     }
-    # Show the results page.
-    return render(request, 'nations/nation_generate_dm.html', context)
+    logger.info(f"Rendering interactive generation page for Nation PK {pk}: {nation.name}")
+    return render(request, 'nations/nation_generate_interactive.html', context)
+
+@require_POST
+@csrf_exempt # For production, ensure your JS sends the CSRF token with AJAX.
+def initiate_mod_generation(request, nation_pk):
+    """
+    API Endpoint: Phase 1 - Create a ModGenerationJob and get the AI to generate a "plan".
+    The plan is a JSON structure outlining all components to be generated.
+    This is called once by the client's JavaScript when the user clicks "Start Generation".
+    """
+    nation = get_object_or_404(Nation, pk=nation_pk)
+    # Create a new job record for this nation.
+    job = ModGenerationJob.objects.create(nation=nation, status='PENDING_PLAN')
+    logger.info(f"Initiating mod generation (API) for Nation PK {nation_pk}, created Job ID {job.id}")
+
+    try:
+        job.status = 'PLANNING' # Update status to show we're working on it.
+        job.save()
+
+        # This prompt is crucial! It needs to guide the AI to return a reliable JSON plan.
+        plan_prompt = f"""
+        You are a planning assistant for a Dominions 6 mod generator.
+        Based on the nation named '{nation.name}' with the description: '{nation.description}',
+        generate a detailed plan as a JSON object for all components required to create a complete and functional mod.
+
+        The JSON object MUST have top-level keys: "nation_meta", "commanders", "mages", "priests", "troops".
+        Each key should map to an object or an array of objects.
+        
+        - "nation_meta": An object with:
+            - "id": "nation_block" (fixed string, this is the component's unique ID in the plan)
+            - "component_type": "nation_meta" (fixed string)
+            - "name_hint": "{nation.name} Main Details" (for UI display)
+            - "concept": "Overall theme, era (EA, MA, LA), visual style, core gameplay ideas. For example: 'A militaristic MA nation of desert nomads, focusing on cavalry and fire magic.'"
+            - "epithet_suggestion": "e.g., The Sunken Kingdom"
+            - "era_suggestion": "MA" (must be EA, MA, or LA)
+            - "summary_suggestion": "A brief summary for the mod file's #description line."
+            - "color_suggestions": {{ "primary_rgb": [0.8, 0.2, 0.1], "secondary_rgb": [0.5, 0.5, 0.5] }} (RGB values 0.0-1.0)
+
+        - "commanders": An array of 2 objects, each representing a non-magic military commander. Each object with:
+            - "id": "commander_1", "commander_2" (unique ID for this component in the plan)
+            - "component_type": "commander" (fixed string)
+            - "name_hint": "e.g., Desert Captain, Dune Warlord" (for UI display)
+            - "concept": "Brief concept (e.g., 'Standard troop leader, good morale.', 'Scout, stealthy, fast map move.')."
+
+        - "mages": An array of 1-2 objects (you decide if 1 or 2 is more appropriate based on nation concept). Each object with:
+            - "id": "mage_1", "mage_2" (if two)
+            - "component_type": "mage" (fixed string)
+            - "name_hint": "e.g., Sand Sorcerer, Oasis Seer"
+            - "concept": "Brief concept including potential magic paths/themes (e.g., 'Fire & Air mage, good researcher.', 'Nature & Water utility mage focusing on summons and site searching.')."
+
+        - "priests": An array of 1 object. Each object with:
+            - "id": "priest_1"
+            - "component_type": "priest" (fixed string)
+            - "name_hint": "e.g., Sun Disciple, Oracle of the Sands"
+            - "concept": "Brief concept (e.g., 'Standard H1 priest, good for spreading dominion and leading sacreds.')."
+        
+        - "troops": An array of 3-4 objects (you decide number based on nation concept). Each object with:
+            - "id": "troop_1", "troop_2", "troop_3", "troop_4" (if four)
+            - "component_type": "troop" (fixed string)
+            - "name_hint": "e.g., Nomad Spearman, Dune Archer, Sand Stalker (Sacred)"
+            - "concept": "Brief concept including role (e.g., 'Basic spear infantry, cheap and numerous.', 'Light archer unit.', 'Elite sacred cavalry unit, expensive but powerful.'). Specify if it should be sacred."
+
+        Assign unique "id" strings for each component within the plan (e.g., "commander_1", "troop_3"). These IDs are critical.
+        The output MUST be ONLY the JSON object. Do not include any other text, explanations, or markdown formatting like ```json.
+        Adhere strictly to the requested JSON structure.
+        """
+        
+        # Call the AI to get the plan. We expect JSON output.
+        parsed_plan = generate_with_gemini(PLANNING_MODEL_NAME, plan_prompt, is_json_output=True)
+        
+        job.plan_details = parsed_plan
+        job.status = 'PLAN_GENERATED' # Plan is successfully created.
+        
+        # Initialize component_statuses based on the plan for UI tracking by the client.
+        # All components start as 'pending'.
+        statuses = {}
+        # Helper to add components to the statuses dict
+        def add_to_statuses(component_item):
+            if isinstance(component_item, dict) and "id" in component_item:
+                statuses[component_item["id"]] = "pending"
+            else:
+                logger.warning(f"Malformed component item in plan for Job ID {job.id}: {component_item}")
+
+
+        if "nation_meta" in parsed_plan and isinstance(parsed_plan["nation_meta"], dict):
+             add_to_statuses(parsed_plan["nation_meta"])
+        else:
+            logger.error(f"Plan for job {job.id} is missing 'nation_meta' or it's not a dict.")
+            raise ValueError("AI plan generation failed: 'nation_meta' is missing or malformed.")
+
+        for component_type_key in ["commanders", "mages", "priests", "troops"]:
+            if component_type_key in parsed_plan and isinstance(parsed_plan[component_type_key], list):
+                for comp in parsed_plan[component_type_key]:
+                    add_to_statuses(comp)
+            else:
+                logger.warning(f"Plan for job {job.id} is missing '{component_type_key}' or it's not a list.")
+                # Depending on requirements, you might want to raise an error here if certain lists are mandatory.
+                # For now, we'll allow them to be potentially missing from the AI's plan.
+
+        job.component_statuses = statuses
+        job.save()
+
+        logger.info(f"Plan successfully generated and saved for Job ID {job.id}.")
+        # Return the job ID and the plan to the client.
+        return JsonResponse({'job_id': job.id, 'plan': job.plan_details, 'component_statuses': job.component_statuses})
+
+    except ValueError as ve: # Catch errors from generate_with_gemini or other ValueErrors
+        job.status = 'FAILED_PLANNING'
+        job.error_message = str(ve)
+        job.save()
+        logger.error(f"Planning phase failed for Job ID {job.id}: {ve}", exc_info=True)
+        return JsonResponse({'error': str(ve), 'job_id': job.id}, status=500)
+    except Exception as e:
+        job.status = 'FAILED_PLANNING'
+        job.error_message = f"An unexpected error occurred during planning: {e}"
+        job.save()
+        logger.error(f"Unexpected planning failure for Job ID {job.id}: {e}", exc_info=True)
+        return JsonResponse({'error': job.error_message, 'job_id': job.id}, status=500)
+
+@require_POST
+@csrf_exempt # For production, ensure your JS sends the CSRF token with AJAX.
+def generate_component_view(request):
+    """
+    API Endpoint: Phase 2 - Generate the .dm code for a single component.
+    This is called iteratively by the client's JavaScript for each item in the plan.
+    It takes the job_id and the specific component_id (from the plan) to generate.
+    """
+    try:
+        data = json.loads(request.body)
+        job_id = data.get('job_id')
+        component_id_from_request = data.get('component_id') # This is the unique ID like "commander_1" or "nation_block"
+        
+        if not all([job_id, component_id_from_request]):
+            logger.warning("generate_component_view called with missing job_id or component_id.")
+            return JsonResponse({'error': 'Missing job_id or component_id in request.'}, status=400)
+
+        job = get_object_or_404(ModGenerationJob, id=job_id)
+        logger.info(f"Received request to generate component '{component_id_from_request}' for Job ID {job.id}")
+
+        # Check if the job is in a state where component generation is allowed.
+        if job.status not in ['PLAN_GENERATED', 'GENERATING_COMPONENTS', 'FAILED_COMPONENT']:
+             logger.warning(f"Job {job.id} is in status '{job.status}', not ready for component generation.")
+             return JsonResponse({'error': f'Job not in a valid state for component generation. Current status: {job.status}'}, status=400)
+
+        # If this is the first component being generated for this job, update the overall job status.
+        if job.status == 'PLAN_GENERATED':
+            job.status = 'GENERATING_COMPONENTS'
+            # No need to save yet, will be saved after component attempt.
+
+        # Find the specific component's details from the stored plan in the job.
+        component_plan_details = None
+        component_type_from_plan = None # e.g., "commander", "troop", "nation_meta"
+
+        # Look for the component_id_from_request within the job.plan_details
+        if job.plan_details.get("nation_meta", {}).get("id") == component_id_from_request:
+            component_plan_details = job.plan_details["nation_meta"]
+        else:
+            for type_key in ["commanders", "mages", "priests", "troops"]:
+                if type_key in job.plan_details: # Check if the key exists in the plan
+                    for item in job.plan_details[type_key]:
+                        if isinstance(item, dict) and item.get("id") == component_id_from_request:
+                            component_plan_details = item
+                            break
+                if component_plan_details:
+                    break
+        
+        if not component_plan_details:
+            error_msg = f"Component ID '{component_id_from_request}' not found in the plan for Job ID {job.id}."
+            job.component_statuses[component_id_from_request] = "error" # Mark as error in job's tracking
+            job.error_message = (job.error_message + "\n" + error_msg) if job.error_message else error_msg
+            job.status = 'FAILED_COMPONENT' # Update overall job status
+            job.save()
+            logger.error(error_msg)
+            return JsonResponse({'error': error_msg, 'job_id': job.id, 'component_id': component_id_from_request}, status=404)
+
+        component_type_from_plan = component_plan_details.get("component_type", "unknown")
+        job.component_statuses[component_id_from_request] = "processing" # Mark as processing
+        job.save(update_fields=['status', 'component_statuses']) # Save current state before AI call
+
+        # Construct a focused prompt for the AI to generate *only this component*.
+        # This prompt needs to be carefully engineered for each component type.
+        nation_overall_concept = job.plan_details.get("nation_meta", {}).get("concept", job.nation.description)
+        
+        # Base prompt structure
+        prompt_lines = [
+            f"You are an expert Dominions 6 modder generating a specific component for the nation '{job.nation.name}'.",
+            f"Overall Nation Concept: \"{nation_overall_concept}\"",
+            f"Nation's original user-provided description: \"{job.nation.description}\"\n",
+            f"You are generating the component with ID: '{component_id_from_request}'",
+            f"Component Type: \"{component_type_from_plan.capitalize()}\"",
+            f"Component Name Hint (for #name tag if applicable): \"{component_plan_details.get('name_hint', 'N/A')}\"",
+            f"Component Concept/Instructions: \"{component_plan_details.get('concept', 'N/A')}\"\n",
+            "Task: Generate ONLY the raw Dominions 6 .dm code block for this specific component.",
+            "- Start with the appropriate command (e.g., '#newnation', '#newmonster').",
+            "- For monsters (#newmonster), DO NOT assign a numeric ID; use the exact placeholder 'TEMP_ID_PLACEHOLDER' (e.g., '#newmonster TEMP_ID_PLACEHOLDER').",
+            "- For the nation block ('#newnation'), DO NOT assign a numeric ID; use the exact placeholder 'TEMP_NATION_ID_PLACEHOLDER'.",
+            "- Ensure all necessary attributes, stats, and commands are included for a functional component based on its type and concept.",
+            f"- If this component uses a #name tag, use: #name \"{component_plan_details.get('name_hint', 'Unnamed Component')}\"",
+            "- Use placeholder sprite names like \"PLACEHOLDER_SPR1.TGA\" and \"PLACEHOLDER_SPR2.TGA\" for monsters.",
+            "- Do NOT include any explanations, markdown, or any text outside the .dm code block itself.",
+            "- The output must be ONLY the .dm code block, starting with the relevant command and ending with #end (if applicable)."
+        ]
+
+        # Add type-specific instructions
+        if component_type_from_plan == "nation_meta":
+            prompt_lines.extend([
+                "\nSpecific instructions for '#newnation' block:",
+                f"  - Use #epithet \"{job.plan_details.get('nation_meta', {}).get('epithet_suggestion', 'The Placeholder Kingdom')}\"",
+                f"  - Use #era {job.plan_details.get('nation_meta', {}).get('era_suggestion', '2')} (1=EA, 2=MA, 3=LA)",
+                f"  - Use #summary \"{job.plan_details.get('nation_meta', {}).get('summary_suggestion', 'A generated nation.')}\"",
+                f"  - Use #color {job.plan_details.get('nation_meta', {}).get('color_suggestions', {}).get('primary_rgb', [0.5,0.5,0.5])}".replace('[','').replace(']','').replace(',',''), # Format as "0.5 0.5 0.5"
+                f"  - Use #secondarycolor {job.plan_details.get('nation_meta', {}).get('color_suggestions', {}).get('secondary_rgb', [0.7,0.7,0.7])}".replace('[','').replace(']','').replace(',',''),
+                f"  - Use #flag \"{job.nation.name.upper().replace(' ','_')}_FLAG.TGA\" (Placeholder)",
+                "  - Do NOT add #addrecunit, #addreccom, or #start[...] commands; these are added during final compilation.",
+                "  - Include basic site/fort settings like #homerealm 10, #likesterr 1, #idealcold 0, #homefort 1, #buildfort 1 unless the concept strongly implies otherwise."
+            ])
+        elif component_type_from_plan in ["commander", "mage", "priest", "troop"]:
+            prompt_lines.extend([
+                "\nSpecific instructions for '#newmonster' block:",
+                "  - Include reasonable stats: #hp, #prot, #mr, #att, #def, #prec, #str, #mor, #enc, #mapmove, #ap, #size.",
+                "  - Include costs: #gcost, #rcost, #rpcost.",
+                "  - Include #itemslots (usually 6 for humanoids) and #bodytype (e.g., human, animal).",
+                "  - If a commander type: add #noleader, #poorleader (10), #okleader (40), or #goodleader (80).",
+                "  - If a mage: add relevant #magicskill (e.g., #magicskill 0 1 for F1) based on its concept.",
+                "  - If a priest: add #magicskill 9 1 (for H1). Higher levels if concept implies.",
+                "  - Consider #holy, #sacredrec (if troop), #reqlab (if mage), #reqtemple (if priest) based on concept.",
+                "  - If the concept mentions 'sacred', ensure the unit has the #holy tag."
+            ])
+        
+        final_prompt = "\n".join(prompt_lines)
+        
+        generated_dm_snippet = generate_with_gemini(COMPONENT_MODEL_NAME, final_prompt)
+
+        if not generated_dm_snippet or not generated_dm_snippet.strip().startswith(("#newnation", "#newmonster")):
+            # Basic validation: does it start with an expected command?
+            logger.error(f"AI returned an invalid or empty snippet for component {component_id_from_request}, Job {job.id}. Snippet: '{generated_dm_snippet}'")
+            raise ValueError(f"AI returned an invalid or empty snippet for '{component_plan_details.get('name_hint', component_id_from_request)}'. It did not start with a recognized command.")
+        
+        # Store the successfully generated snippet.
+        job.generated_snippets[component_id_from_request] = generated_dm_snippet
+        job.component_statuses[component_id_from_request] = "done"
+        
+        # Check if all components planned are now marked as 'done' or 'error'.
+        all_components_attempted = all(
+            status in ["done", "error"] for status in job.component_statuses.values()
+        )
+        if all_components_attempted and len(job.component_statuses) == sum(len(v) if isinstance(v,list) else 1 for k,v in job.plan_details.items()): # Ensure all planned items have a status
+            job.status = 'COMPONENTS_GENERATED' # Mark that this phase is complete.
+        
+        job.save() # Save snippet, component status, and potentially overall job status.
+
+        logger.info(f"Component '{component_id_from_request}' generated successfully for Job ID {job.id}.")
+        return JsonResponse({
+            'message': f"Component '{component_plan_details.get('name_hint', component_id_from_request)}' generated successfully.",
+            'job_id': job.id,
+            'component_id': component_id_from_request,
+            'snippet': generated_dm_snippet, # Send snippet back to JS for display.
+            'component_statuses': job.component_statuses, # Send updated statuses.
+            'overall_status': job.status # Send updated overall job status.
+        })
+
+    except ModGenerationJob.DoesNotExist:
+        logger.error(f"Generate component request for non-existent Job ID: {data.get('job_id') if data else 'N/A'}")
+        return JsonResponse({'error': 'Job not found.'}, status=404)
+    except json.JSONDecodeError:
+        logger.error(f"Invalid JSON in generate_component_view request body: {request.body}", exc_info=True)
+        return JsonResponse({'error': 'Invalid JSON in request body.'}, status=400)
+    except ValueError as ve: # Catch errors from generate_with_gemini or other ValueErrors
+        error_msg = str(ve)
+        logger.error(f"Component generation failed for Job ID {job_id if 'job_id' in locals() else 'N/A'}, Component ID {component_id_from_request if 'component_id_from_request' in locals() else 'N/A'}: {error_msg}", exc_info=True)
+        # Ensure job and component_id_from_request are defined before trying to update status
+        if 'job' in locals() and job and 'component_id_from_request' in locals() and component_id_from_request:
+             job.component_statuses[component_id_from_request] = "error"
+             job.error_message = (job.error_message + f"\nError generating '{component_plan_details.get('name_hint', component_id_from_request)}': {error_msg}") if job.error_message else f"Error generating '{component_plan_details.get('name_hint', component_id_from_request)}': {error_msg}"
+             job.status = 'FAILED_COMPONENT' # Mark that at least one component failed.
+             job.save()
+        return JsonResponse({'error': error_msg, 'job_id': job_id if 'job_id' in locals() else None, 'component_id': component_id_from_request if 'component_id_from_request' in locals() else None}, status=500)
+    except Exception as e:
+        error_msg = f"An unexpected error occurred: {e}"
+        logger.error(f"Unexpected component generation failure for Job ID {job_id if 'job_id' in locals() else 'N/A'}, Component ID {component_id_from_request if 'component_id_from_request' in locals() else 'N/A'}: {error_msg}", exc_info=True)
+        if 'job' in locals() and job and 'component_id_from_request' in locals() and component_id_from_request:
+             job.component_statuses[component_id_from_request] = "error"
+             job.error_message = (job.error_message + f"\nUnexpected error for '{component_plan_details.get('name_hint', component_id_from_request)}': {error_msg}") if job.error_message else f"Unexpected error for '{component_plan_details.get('name_hint', component_id_from_request)}': {error_msg}"
+             job.status = 'FAILED_COMPONENT'
+             job.save()
+        return JsonResponse({'error': error_msg, 'job_id': job_id if 'job_id' in locals() else None, 'component_id': component_id_from_request if 'component_id_from_request' in locals() else None}, status=500)
+
+@require_POST # Or GET, depending on how client triggers it. POST is fine.
+@csrf_exempt # For production, ensure your JS sends the CSRF token with AJAX.
+def compile_mod_file_view(request, job_id):
+    """
+    API Endpoint: Phase 3 - Compile all generated snippets into a single .dm file string.
+    This is called by the client's JavaScript after all components have been attempted.
+    It assembles the mod header, monster blocks, and the nation block with recruitment lists.
+    """
+    job = get_object_or_404(ModGenerationJob, id=job_id)
+    logger.info(f"Compile request received for Job ID {job.id}. Current status: {job.status}")
+
+    # Allow compilation even if some components failed, so user can get partial results.
+    if job.status not in ['COMPONENTS_GENERATED', 'GENERATING_COMPONENTS', 'FAILED_COMPONENT']: # GENERATING_COMPONENTS if user forces compile early
+        logger.warning(f"Job {job.id} not in a suitable state for compilation. Status: {job.status}")
+        return JsonResponse({'error': f'Job not ready for compilation. Current status: {job.status}'}, status=400)
+
+    try:
+        original_job_status_before_compile = job.status
+        job.status = 'COMPILING' # Update status to show work in progress.
+        job.save(update_fields=['status'])
+
+        nation_name_sanitized = "".join(c if c.isalnum() else "_" for c in job.nation.name)
+        mod_name = f"{nation_name_sanitized}ModByAI" # Make it clear it's AI generated
+        
+        nation_meta_plan = job.plan_details.get("nation_meta", {})
+        mod_description_from_plan = nation_meta_plan.get("summary_suggestion", f"AI-generated mod for the nation of {job.nation.name}, based on the description: {job.nation.description}")
+
+        # Start building the .dm file content.
+        compiled_lines = [
+            f'#modname "{mod_name}"',
+            f'#description "{mod_description_from_plan}"',
+            '#version "1.0.0"',
+            '#domversion "6.28" -- Dominions 6 Target Version', # Specify target game version
+            f'#icon "{nation_name_sanitized.upper()}_ICON.TGA" -- Placeholder icon (user needs to create this)\n',
+            '-- Generated by Dom6ModGen AI Assistant --\n',
+        ]
+
+        # Systematically assign IDs. These are starting points.
+        # For a real application, you might want these to be configurable or from a central sequence manager
+        # to avoid clashes if multiple mods are used.
+        current_monster_id_counter = 5000 
+        current_nation_id_value = 150 # Default starting ID for mod nations
+
+        # --- Assemble Monster Blocks (Commanders, Mages, Priests, Troops) ---
+        monster_dm_snippets = []
+        # Store names of generated monsters for the nation's recruitment list.
+        recruitable_units_actual_names = []
+        recruitable_commanders_actual_names = []
+
+        # Define the order for processing monster types, which can be important for .dm file structure or preference.
+        monster_component_types_in_order = ["commanders", "mages", "priests", "troops"]
+        
+        for comp_type_key in monster_component_types_in_order:
+            if comp_type_key in job.plan_details and isinstance(job.plan_details[comp_type_key], list):
+                for component_definition_in_plan in job.plan_details[comp_type_key]:
+                    if not isinstance(component_definition_in_plan, dict): continue # Skip malformed plan items
+
+                    component_id_from_plan = component_definition_in_plan.get("id")
+                    component_name_hint = component_definition_in_plan.get("name_hint", component_id_from_plan)
+                    
+                    snippet_text = job.generated_snippets.get(component_id_from_plan)
+                    
+                    if snippet_text and job.component_statuses.get(component_id_from_plan) == "done":
+                        # Replace the placeholder ID with an actual, incremented ID.
+                        processed_snippet = snippet_text.replace("TEMP_ID_PLACEHOLDER", str(current_monster_id_counter))
+                        monster_dm_snippets.append(f"\n-- Component: {comp_type_key.capitalize()} - {component_name_hint} (Generated ID: {current_monster_id_counter}) --")
+                        monster_dm_snippets.append(processed_snippet)
+                        
+                        # Attempt to extract the actual #name from the snippet for the recruitment list.
+                        unit_actual_name_in_snippet = None
+                        for line in processed_snippet.splitlines():
+                            if line.strip().startswith("#name"):
+                                try:
+                                    # Extracts content between the first pair of double quotes.
+                                    unit_actual_name_in_snippet = line.split('"', 1)[1].rsplit('"', 1)[0]
+                                    break
+                                except IndexError:
+                                    logger.warning(f"Could not parse #name from snippet for {component_id_from_plan}, Job {job.id}")
+                        
+                        if unit_actual_name_in_snippet:
+                            if comp_type_key == "commanders" or comp_type_key == "mages" or comp_type_key == "priests": # Mages/Priests are usually commanders
+                                recruitable_commanders_actual_names.append(unit_actual_name_in_snippet)
+                            elif comp_type_key == "troops":
+                                recruitable_units_actual_names.append(unit_actual_name_in_snippet)
+                        else:
+                            logger.warning(f"No #name found in snippet for {component_id_from_plan} (Job {job.id}), cannot add to recruitment list by name.")
+
+                        current_monster_id_counter += 1 # Increment for the next monster.
+                    else:
+                         monster_dm_snippets.append(f"\n-- SKIPPED Monster Component (Not Generated or Error): {comp_type_key.capitalize()} - {component_name_hint} --")
+
+        if monster_dm_snippets:
+            compiled_lines.append('-- =============================================================================')
+            compiled_lines.append('-- MONSTER DEFINITIONS (Units & Commanders)')
+            compiled_lines.append(f'-- Assigned ID Range: 5000 - {current_monster_id_counter -1}') # Show the range used
+            compiled_lines.append('-- =============================================================================')
+            compiled_lines.extend(monster_dm_snippets)
+            compiled_lines.append('\n-- == END MONSTERS == --\n')
+
+        # --- Assemble Nation Block ---
+        nation_block_id_in_plan = job.plan_details.get("nation_meta", {}).get("id")
+        nation_block_snippet_text = job.generated_snippets.get(nation_block_id_in_plan)
+
+        if nation_block_snippet_text and job.component_statuses.get(nation_block_id_in_plan) == "done":
+            # Replace placeholder nation ID.
+            processed_nation_block = nation_block_snippet_text.replace("TEMP_NATION_ID_PLACEHOLDER", str(current_nation_id_value))
+            
+            # Inject recruitment commands (#addrecunit, #addreccom) and starting army before the nation's #end tag.
+            nation_block_lines = processed_nation_block.splitlines()
+            final_nation_block_lines = []
+            end_tag_found_and_processed = False
+
+            for line in nation_block_lines:
+                if line.strip().lower() == "#end" and not end_tag_found_and_processed:
+                    # This is where we inject recruitment before the final #end of the nation block.
+                    final_nation_block_lines.append("\n-- Recruitment and Starting Army --")
+                    final_nation_block_lines.append("#clearrec -- Ensures only mod units are available by default")
+                    for unit_name in recruitable_units_actual_names:
+                        final_nation_block_lines.append(f'#addrecunit "{unit_name}"')
+                    for com_name in recruitable_commanders_actual_names:
+                        final_nation_block_lines.append(f'#addreccom "{com_name}"')
+                    
+                    # Add a basic starting army (can be made more intelligent based on plan/concepts).
+                    if recruitable_commanders_actual_names:
+                        final_nation_block_lines.append(f'#startcom "{recruitable_commanders_actual_names[0]}"')
+                    if recruitable_units_actual_names:
+                        # Add a couple of different starting units if available
+                        final_nation_block_lines.append(f'#startunit "{recruitable_units_actual_names[0]}" 15') 
+                        if len(recruitable_units_actual_names) > 1:
+                             final_nation_block_lines.append(f'#startunit "{recruitable_units_actual_names[1]}" 10')
+                    
+                    final_nation_block_lines.append(line) # Add the original #end tag
+                    end_tag_found_and_processed = True
+                else:
+                    final_nation_block_lines.append(line)
+            
+            # If #end was somehow not found, append recruitment and a new #end.
+            if not end_tag_found_and_processed:
+                logger.warning(f"No #end tag found in nation block for Job {job.id}. Appending recruitment and #end.")
+                # (Same recruitment logic as above)
+                final_nation_block_lines.append("\n-- Recruitment and Starting Army (appended due to missing #end) --")
+                final_nation_block_lines.append("#clearrec")
+                for unit_name in recruitable_units_actual_names: final_nation_block_lines.append(f'#addrecunit "{unit_name}"')
+                for com_name in recruitable_commanders_actual_names: final_nation_block_lines.append(f'#addreccom "{com_name}"')
+                if recruitable_commanders_actual_names: final_nation_block_lines.append(f'#startcom "{recruitable_commanders_actual_names[0]}"')
+                if recruitable_units_actual_names: final_nation_block_lines.append(f'#startunit "{recruitable_units_actual_names[0]}" 15')
+                final_nation_block_lines.append("#end")
+
+
+            compiled_lines.append('-- =============================================================================')
+            compiled_lines.append(f'-- NATION DEFINITION (Generated ID: {current_nation_id_value})')
+            compiled_lines.append('-- =============================================================================')
+            compiled_lines.append("\n".join(final_nation_block_lines))
+            compiled_lines.append('\n-- == END NATION DEFINITION == --\n')
+        else:
+            compiled_lines.append('-- ERROR: Nation Block ("nation_meta") was not generated or had an error. Cannot complete mod. --')
+
+        # (Future: Add sections for custom weapons, armors, spells if they were part of the plan and generated)
+
+        final_dm_content_str = "\n".join(compiled_lines)
+        job.final_mod_content = final_dm_content_str
+        
+        # Determine final status based on component generation success.
+        if any(status == "error" for status in job.component_statuses.values()) or \
+           original_job_status_before_compile == 'FAILED_COMPONENT':
+            job.status = 'COMPLETED_WITH_ERRORS'
+            if not job.error_message or "Compilation completed" not in job.error_message : # Avoid duplicate messages
+                 job.error_message = (job.error_message or "") + "\nCompilation completed, but some components may be missing or faulty. Please review the output."
+        else:
+            job.status = 'COMPLETED'
+        job.save()
+
+        logger.info(f"Mod file compiled for Job ID {job.id}. Final status: {job.status}.")
+        return JsonResponse({
+            'message': f'Mod file compiled! Status: {job.get_status_display()}', 
+            'job_id': job.id, 
+            'status': job.status, # Send back the final status
+            'dm_content_preview': final_dm_content_str[:1500] # Send a preview of the compiled content.
+        })
+        
+    except Exception as e:
+        job.status = 'FAILED_COMPILATION'
+        error_msg = f"An unexpected error occurred during mod file compilation: {e}"
+        job.error_message = (job.error_message + "\n" + error_msg) if job.error_message else error_msg
+        job.save()
+        logger.error(f"Mod compilation failed critically for Job ID {job.id}: {e}", exc_info=True)
+        return JsonResponse({'error': error_msg, 'job_id': job.id}, status=500)
+
+@require_GET 
+def download_mod_file_view(request, job_id):
+    """
+    Serves the compiled .dm file for download.
+    This is called by the client after successful compilation.
+    """
+    job = get_object_or_404(ModGenerationJob, id=job_id)
+    
+    # Only allow download if compilation was completed (even with errors) and content exists.
+    if job.status not in ['COMPLETED', 'COMPLETED_WITH_ERRORS'] or not job.final_mod_content:
+        logger.warning(f"Download attempt for Job ID {job.id}, but it's not completed or has no content. Status: {job.status}")
+        raise Http404("Mod file content is not available or the job did not complete compilation successfully.")
+
+    nation_name_sanitized = "".join(c if c.isalnum() else "_" for c in job.nation.name)
+    filename = f"{nation_name_sanitized}_job{job.id}.dm" # Unique filename for the download.
+    
+    # Dominions .dm files are typically plain text. UTF-8 is a safe bet for web and modern systems.
+    # If Dominions requires a specific encoding (like ANSI/Windows-1252), adjust 'charset' accordingly.
+    response = HttpResponse(job.final_mod_content, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"' # Prompts browser to download.
+    logger.info(f"Serving .dm file for download: Job ID {job.id}, Filename {filename}")
+    return response
+
+# Your original nation_generate_dm view (the one that times out) can be kept for reference,
+# or removed if this new interactive approach replaces it entirely.
+# def nation_generate_dm(request, pk): ...

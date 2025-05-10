@@ -1,0 +1,405 @@
+{% extends "base.html" %} {# Assumes you have a base.html. Adjust if necessary. #}
+{% load static %} {# For loading static files like CSS or JS if you add them. #}
+
+{% block title %}Interactive Mod Generation for {{ nation.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h1 class="h4 mb-0">Interactive Mod Generation: {{ nation.name }}</h1>
+        </div>
+        <div class="card-body">
+            <p class="card-text"><em>Nation Description: {{ nation.description }}</em></p>
+
+            <button id="startGenerationBtn" class="btn btn-lg btn-success mb-4 w-100" data-nation-pk="{{ nation.pk }}">
+                <i class="fas fa-cogs"></i> Start Generation Process
+            </button>
+            <hr>
+
+            <div id="generationJobInfo" class="mb-3" style="display:none;">
+                <h5 class="text-muted">Job ID: <span id="currentJobIdDisplay" class="badge bg-secondary"></span></h5>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-7">
+                    <h3 class="h5">Overall Status:</h3>
+                    <div id="overallStatusDisplay" class="alert alert-secondary p-3">
+                        Waiting to start... Click the button above to begin.
+                    </div>
+
+                    <h3 class="h5 mt-4">Generation Plan & Progress:</h3>
+                    <ul id="planProgressDisplay" class="list-group" style="max-height: 450px; overflow-y: auto;">
+                        <li class="list-group-item text-muted">The generation plan and component progress will appear here once started.</li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-5">
+                    <h3 class="h5">Log Stream:</h3>
+                    <div id="logDisplay" style="height: 200px; overflow-y: auto; border: 1px solid #ced4da; padding: 10px; font-size: 0.85em; background-color: #212529; color: #f8f9fa; border-radius: 0.25rem;">
+                        <p class="text-muted small m-0">Log messages will appear here...</p>
+                    </div>
+                    
+                    <h3 class="h5 mt-3">Last Generated Snippet:</h3>
+                    <pre id="lastSnippetDisplay" class="bg-light border p-2" style="min-height: 150px; max-height: 250px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-size: 0.8em;">Waiting for component generation...</pre>
+                </div>
+            </div>
+            
+            <hr class="mt-4">
+            <div id="finalModActions" class="mt-4" style="display: none;">
+                <h3 class="h5">Final Actions:</h3>
+                <button id="compileModBtn" class="btn btn-info w-100 mb-2" disabled>
+                    <i class="fas fa-file-archive"></i> Compile Mod File
+                </button>
+                <div id="compilationStatus" class="mt-2 small"></div>
+                <a href="#" id="downloadModLink" class="btn btn-warning w-100 mt-2" style="display:none;" download>
+                    <i class="fas fa-download"></i> Download Compiled Mod File (.dm)
+                </a>
+                
+                <h4 class="h6 mt-4">Compiled Mod Preview (first ~1000 characters):</h4>
+                <pre id="modPreviewDisplay" class="bg-light border p-2" style="max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-size: 0.8em;">Preview will appear after compilation.</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .spinner-simple {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        vertical-align: text-bottom;
+        border: .2em solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border .75s linear infinite;
+    }
+    @keyframes spinner-border {
+        to { transform: rotate(360deg); }
+    }
+    /* Styling for progress items */
+    .component-name { font-weight: 500; }
+    .component-concept { font-size: 0.9em; color: #6c757d; display: block; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- DOM Element References ---
+    const nationPk = "{{ nation.pk }}"; // Get nation PK from Django template
+    const startBtn = document.getElementById('startGenerationBtn');
+    const overallStatusDisplay = document.getElementById('overallStatusDisplay');
+    const planProgressDisplay = document.getElementById('planProgressDisplay');
+    const lastSnippetDisplay = document.getElementById('lastSnippetDisplay');
+    const logDisplay = document.getElementById('logDisplay');
+    const currentJobIdDisplay = document.getElementById('currentJobIdDisplay');
+    const generationJobInfoDiv = document.getElementById('generationJobInfo');
+
+    const finalModActionsDiv = document.getElementById('finalModActions');
+    const compileModBtn = document.getElementById('compileModBtn');
+    const compilationStatusDiv = document.getElementById('compilationStatus');
+    const downloadModLink = document.getElementById('downloadModLink');
+    const modPreviewDisplay = document.getElementById('modPreviewDisplay');
+
+    // --- State Variables ---
+    let currentJobId = null;
+    let generationPlanDetails = null; // Stores the detailed plan object from the server
+    let componentQueue = []; // Holds component objects {id: "comp_id", type: "...", name_hint: "...", concept: "..."} to be processed
+
+    // --- Utility Functions ---
+
+    // Helper to get CSRF token for Django POST requests
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken'); // Get it once on load
+
+    // Logs messages to the UI log box and console
+    function logMessage(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement('div'); // Use div for better spacing
+        logEntry.className = 'mb-1'; // Add a little margin
+        logEntry.innerHTML = `<small class="text-muted">[${timestamp}]</small> ${message}`;
+        if (type === 'error') logEntry.style.color = '#ffc107'; // Bootstrap warning yellow for errors in dark log
+        else if (type === 'success') logEntry.style.color = '#20c997'; // Bootstrap success teal
+        
+        if (logDisplay.firstChild && logDisplay.firstChild.textContent.startsWith("Log messages will appear here...")) {
+            logDisplay.innerHTML = ''; // Clear initial placeholder
+        }
+        logDisplay.appendChild(logEntry);
+        logDisplay.scrollTop = logDisplay.scrollHeight; // Auto-scroll to the latest message
+        console.log(`[LOG - ${type.toUpperCase()}] ${message}`);
+    }
+
+    // Updates the main status display banner
+    function updateOverallStatus(message, alertClass = 'alert-secondary') {
+        overallStatusDisplay.textContent = message;
+        overallStatusDisplay.className = `alert ${alertClass} p-3`; // Ensure padding is consistent
+        // No need to log here, as calling functions usually log more specific messages.
+    }
+
+    // Populates the UI with the generation plan and builds the processing queue
+    function displayInitialPlanProgress(planData, initialStatuses) {
+        planProgressDisplay.innerHTML = ''; // Clear any existing content
+        componentQueue = []; // Reset the processing queue
+
+        const createComponentListItem = (component) => {
+            const listItem = document.createElement('li');
+            listItem.id = `progress-${component.id}`; // Unique ID for this list item
+            listItem.className = 'list-group-item d-flex justify-content-between align-items-center flex-wrap'; // Allow wrapping
+            
+            const status = initialStatuses[component.id] || 'pending';
+            let statusBadgeClass = 'bg-secondary'; // Default for pending
+            if (status === 'done') statusBadgeClass = 'bg-success';
+            else if (status === 'error') statusBadgeClass = 'bg-danger';
+            else if (status === 'processing') statusBadgeClass = 'bg-info';
+
+            listItem.innerHTML = `
+                <div class="me-auto">
+                    <span class="component-name">${component.name_hint || component.id}</span>
+                    <small class="component-concept text-muted">Type: ${component.component_type} | Concept: ${component.concept ? component.concept.substring(0, 70) + '...' : 'N/A'}</small>
+                </div>
+                <span class="badge ${statusBadgeClass} rounded-pill" id="status-${component.id}">${status}</span>
+            `;
+            planProgressDisplay.appendChild(listItem);
+
+            // Only add to the processing queue if it's marked as 'pending' initially.
+            if (status === 'pending') {
+                componentQueue.push(component); 
+            }
+        };
+        
+        // Process nation_meta first if it exists
+        if (planData.nation_meta && typeof planData.nation_meta === 'object') {
+             createComponentListItem(planData.nation_meta);
+        }
+        // Then process other component types which are expected to be arrays
+        ["commanders", "mages", "priests", "troops"].forEach(typeKey => {
+            if (planData[typeKey] && Array.isArray(planData[typeKey])) {
+                planData[typeKey].forEach(component => {
+                    if (typeof component === 'object' && component.id) { // Basic validation
+                        createComponentListItem(component);
+                    } else {
+                        logMessage(`Malformed component data in plan under '${typeKey}': ${JSON.stringify(component)}`, 'error');
+                    }
+                });
+            }
+        });
+        logMessage(`Generation plan displayed. ${componentQueue.length} components queued for processing.`);
+    }
+    
+    // Updates the status badge for a specific component in the UI
+    function updateComponentStatusUI(componentId, newStatus, message = '') {
+        const statusBadge = document.getElementById(`status-${componentId}`);
+        const listItem = document.getElementById(`progress-${componentId}`); // The <li> element
+        if (statusBadge) {
+            statusBadge.textContent = newStatus;
+            let badgeClass = 'bg-secondary'; // Default
+            if (newStatus === 'done') badgeClass = 'bg-success';
+            else if (newStatus === 'error') badgeClass = 'bg-danger';
+            else if (newStatus === 'processing') badgeClass = 'bg-info text-dark'; // Dark text for light blue
+            statusBadge.className = `badge ${badgeClass} rounded-pill`;
+        }
+        // Optionally add a more detailed message below the component name if 'message' is provided
+        if (message && listItem) {
+            let detailSpan = listItem.querySelector('.component-status-detail');
+            if (!detailSpan) {
+                detailSpan = document.createElement('small');
+                detailSpan.className = 'component-status-detail d-block text-muted w-100'; // Full width
+                // Insert it after the main content div within the list item
+                const mainContentDiv = listItem.querySelector('div.me-auto');
+                if(mainContentDiv) mainContentDiv.parentNode.insertBefore(detailSpan, mainContentDiv.nextSibling);
+                else listItem.appendChild(detailSpan); // Fallback
+            }
+            detailSpan.textContent = message.substring(0, 150) + (message.length > 150 ? '...' : ''); // Truncate long messages
+        }
+    }
+
+    // --- Core Logic Functions ---
+
+    // Fetches and processes the next component from the queue
+    async function generateNextComponent() {
+        if (componentQueue.length === 0) {
+            updateOverallStatus('All planned components have been processed!', 'alert-success');
+            logMessage('Component queue is empty. Generation cycle finished.', 'success');
+            finalModActionsDiv.style.display = 'block'; // Show compile button etc.
+            compileModBtn.disabled = false; // Enable compile button
+            startBtn.innerHTML = '<i class="fas fa-cogs"></i> Start Generation Process'; // Reset start button
+            startBtn.disabled = false;
+            return; // All done
+        }
+
+        const componentToProcess = componentQueue.shift(); // Get the next component from the front of the queue
+        const componentId = componentToProcess.id;
+
+        updateOverallStatus(`Processing: ${componentToProcess.name_hint || componentId} (${componentToProcess.component_type})`, 'alert-primary');
+        updateComponentStatusUI(componentId, 'processing');
+        logMessage(`Requesting generation for component: ${componentId} (${componentToProcess.name_hint})`);
+
+        try {
+            const response = await fetch("{% url 'nations:generate_component_api' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken // Crucial for Django POST requests
+                },
+                body: JSON.stringify({
+                    job_id: currentJobId,
+                    component_id: componentId
+                    // The backend will use component_id to find its details in the stored job.plan_details
+                })
+            });
+
+            const data = await response.json(); // Always try to parse JSON
+
+            if (!response.ok) {
+                // If response is not OK (e.g., 400, 404, 500), throw an error with the message from backend
+                throw new Error(data.error || `Server error! Status: ${response.status}`);
+            }
+            
+            // Success!
+            logMessage(`Successfully generated component: ${componentId}. Server says: ${data.message}`, 'success');
+            lastSnippetDisplay.textContent = data.snippet || "No snippet returned by server.";
+            updateComponentStatusUI(componentId, 'done');
+            
+            // Update overall job status if the server indicates all components are now generated
+            if(data.overall_status === 'COMPONENTS_GENERATED'){
+                updateOverallStatus('All components successfully generated and saved on server!', 'alert-success');
+            }
+
+        } catch (error) {
+            // Handle errors from fetch or if response.ok was false
+            logMessage(`Error generating component '${componentId}': ${error.message}`, 'error');
+            updateComponentStatusUI(componentId, 'error', error.message); // Show error message on UI for this component
+            lastSnippetDisplay.textContent = `Error for component '${componentId}':\n${error.message}`;
+            // We'll continue to the next component even if one fails.
+            // The user can then decide to compile with missing parts or try to fix/retry later (retry not implemented here).
+        } finally {
+            // Schedule the next component generation after a short delay.
+            // This gives the browser a moment to breathe and is gentler on the server/API.
+            setTimeout(generateNextComponent, 750); // 0.75 second delay
+        }
+    }
+
+    // --- Event Listeners ---
+
+    // Handles the "Start Generation" button click
+    startBtn.addEventListener('click', async function() {
+        this.disabled = true; // Prevent multiple clicks
+        this.innerHTML = '<span class="spinner-simple me-2" role="status" aria-hidden="true"></span> Initiating...';
+        
+        // Reset UI elements for a new generation run
+        updateOverallStatus('Requesting generation plan from AI...', 'alert-info');
+        planProgressDisplay.innerHTML = '<li class="list-group-item text-muted">Fetching plan...</li>';
+        logDisplay.innerHTML = ''; // Clear previous logs
+        lastSnippetDisplay.textContent = 'Waiting for component generation...';
+        modPreviewDisplay.textContent = 'Preview will appear after compilation.';
+        finalModActionsDiv.style.display = 'none'; // Hide compile/download actions
+        compileModBtn.disabled = true;
+        downloadModLink.style.display = 'none';
+        generationJobInfoDiv.style.display = 'none'; // Hide Job ID initially
+
+        try {
+            // Phase 1: Call the backend to create a job and get the generation plan
+            const response = await fetch("{% url 'nations:initiate_mod_generation_api' nation_pk=nation.pk %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrftoken } // Django needs CSRF for POST
+            });
+            const data = await response.json(); // Expecting JSON response
+
+            if (!response.ok) { // Check if HTTP status is 2xx
+                throw new Error(data.error || `Server error! Status: ${response.status}`);
+            }
+
+            // Plan received successfully
+            currentJobId = data.job_id;
+            generationPlanDetails = data.plan; // Store the plan
+            
+            generationJobInfoDiv.style.display = 'block'; // Show Job ID
+            currentJobIdDisplay.textContent = currentJobId;
+            updateOverallStatus(`Plan received for Job ID: ${currentJobId}. Preparing to generate components.`, 'alert-secondary');
+            logMessage(`Plan successfully received from server for Job ID: ${currentJobId}.`);
+            
+            // Populate the UI with the plan and build the component queue
+            displayInitialPlanProgress(generationPlanDetails, data.component_statuses); 
+            
+            // Change button text to indicate processing
+            this.innerHTML = '<span class="spinner-simple me-2" role="status" aria-hidden="true"></span> Processing Components...';
+            
+            // Start processing the first component from the queue
+            await generateNextComponent(); // Kick off the iterative generation
+
+        } catch (error) {
+            // Handle errors during the initiation phase
+            updateOverallStatus(`Error initiating generation: ${error.message}`, 'alert-danger');
+            logMessage(`Error during initiation: ${error.message}`, 'error');
+            this.disabled = false; // Re-enable button if initiation failed
+            this.innerHTML = '<i class="fas fa-cogs"></i> Start Generation Process';
+        }
+        // Note: The button's state (disabled/text) will be managed by the generateNextComponent flow after this point if initiation was successful.
+    });
+
+    // Handles the "Compile Mod File" button click
+    compileModBtn.addEventListener('click', async function() {
+        if (!currentJobId) {
+            updateOverallStatus("No active generation job to compile.", 'alert-warning');
+            logMessage("Compile button clicked, but no currentJobId found.", "warning");
+            return;
+        }
+        this.disabled = true; // Prevent multiple clicks
+        this.innerHTML = '<span class="spinner-simple me-2" role="status" aria-hidden="true"></span> Compiling...';
+        compilationStatusDiv.textContent = "Sending request to compile mod file on server...";
+        compilationStatusDiv.className = "mt-2 alert alert-info"; // Reset class
+        downloadModLink.style.display = 'none'; // Hide download link initially
+        modPreviewDisplay.textContent = 'Waiting for compilation...';
+
+        try {
+            // Phase 3: Call backend to compile all generated snippets for the current job
+            const response = await fetch(`{% url 'nations:compile_mod_api' job_id=0 %}`.replace('0', currentJobId), { // Replace '0' with actual job_id
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrftoken }
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || `Server error! Status: ${response.status}`);
+            }
+            
+            // Compilation successful (or completed with errors, as per backend logic)
+            compilationStatusDiv.textContent = data.message || "Compilation status unknown.";
+            compilationStatusDiv.className = (data.status === 'COMPLETED' || data.status === 'COMPLETED_WITH_ERRORS') ? "mt-2 alert alert-success" : "mt-2 alert alert-warning";
+            
+            modPreviewDisplay.textContent = data.dm_content_preview || "No preview content returned.";
+            
+            // If compilation is truly complete (even with errors), show download link
+            if (data.status === 'COMPLETED' || data.status === 'COMPLETED_WITH_ERRORS') {
+                downloadModLink.href = `{% url 'nations:download_mod_file' job_id=0 %}`.replace('0', currentJobId);
+                downloadModLink.style.display = 'inline-block'; // Show the download button
+                logMessage(`Mod file compiled. Status: ${data.status}. Download link available.`, 'success');
+            } else {
+                 logMessage(`Mod file compilation attempt finished. Status: ${data.status}.`, 'warning');
+            }
+
+        } catch (error) {
+            // Handle errors during compilation
+            compilationStatusDiv.textContent = `Error during compilation: ${error.message}`;
+            compilationStatusDiv.className = "mt-2 alert alert-danger";
+            logMessage(`Error compiling mod: ${error.message}`, 'error');
+        } finally {
+            this.disabled = false; // Re-enable compile button
+            this.innerHTML = '<i class="fas fa-file-archive"></i> Compile Mod File';
+        }
+    });
+});
+</script>
+{% endblock %}
