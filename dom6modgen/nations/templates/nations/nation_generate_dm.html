@@ -1,9 +1,12 @@
+{# dom6modgen/nations/templates/nations/nation_generate_dm.html #}
+{% load static %} {# Load the static files tag #}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generated DM Code for {{ nation.name }}</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
     <style>
         /* Basic styling for code blocks */
         pre { background-color: #f4f4f4; border: 1px solid #ddd; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }

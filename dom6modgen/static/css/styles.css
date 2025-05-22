@@ -1,0 +1,126 @@
+/* dom6modgen/static/css/styles.css */
+
+/* Basic Resets & Global Styles */
+body {
+    margin: 0;
+    font-family: 'Georgia', serif; /* Or a suitable font for fantasy */
+    background-color: #1a1a1a; /* Very dark charcoal */
+    color: #e0e0e0; /* Off-white text */
+    line-height: 1.6;
+}
+
+h1, h2, h3 {
+    font-family: 'Trajan Pro', serif; /* A more grand/gothic font if available */
+    color: #daa520; /* Muted gold */
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    margin-bottom: 0.5em;
+}
+
+a {
+    color: #92b0fa; /* Muted blue for links */
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #c9e0ff; /* Lighter blue on hover */
+    text-decoration: underline;
+}
+
+/* Container for main content */
+.container {
+    max-width: 960px;
+    margin: 40px auto;
+    padding: 20px;
+    background-color: #2a2a2a; /* Slightly lighter dark background for content area */
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+}
+
+/* List styling */
+ul {
+    list-style: none; /* Remove default bullet points */
+    padding: 0;
+}
+
+li {
+    background-color: #3a3a3a; /* Darker background for list items */
+    margin-bottom: 10px;
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: 1px solid #4a4a4a;
+    display: flex; /* For better alignment of content and links */
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Buttons */
+button, input[type="submit"] {
+    background-color: #5a4b3d; /* Dark bronze/brown */
+    color: #e0e0e0;
+    border: 1px solid #7a6b5d;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+button:hover, input[type="submit"]:hover {
+    background-color: #7a6b5d; /* Lighter bronze/brown on hover */
+    border-color: #9a8b7d;
+}
+
+/* Forms */
+form p {
+    margin-bottom: 15px;
+}
+
+form label {
+    display: block;
+    margin-bottom: 5px;
+    color: #daa520; /* Gold for labels */
+}
+
+form input[type="text"],
+form input[type="url"],
+form textarea {
+    width: calc(100% - 22px); /* Account for padding and border */
+    padding: 10px;
+    margin-top: 5px;
+    background-color: #1a1a1a;
+    border: 1px solid #4a4a4a;
+    color: #e0e0e0;
+    border-radius: 4px;
+}
+
+form textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Code blocks for generated DM code */
+pre {
+    background-color: #0d0d0d;
+    border: 1px solid #444;
+    padding: 15px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border-radius: 5px;
+    color: #00ff00; /* Green text for code, classic terminal look */
+    font-family: 'Consolas', 'Courier New', monospace;
+    overflow-x: auto;
+}
+
+.error {
+    color: #ff6666; /* Light red for errors */
+    font-weight: bold;
+}
+
+.prompt {
+    background-color: #333;
+    border: 1px dashed #666;
+    padding: 15px;
+    margin-top: 20px;
+    border-radius: 8px;
+}
