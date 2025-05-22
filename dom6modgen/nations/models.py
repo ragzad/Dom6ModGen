@@ -13,6 +13,7 @@ class Nation(models.Model):
         blank=True, # Allow nations not tied to a specific user initially?
         related_name='created_nations'
     )
+    generation_status = models.CharField(max_length=50, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
