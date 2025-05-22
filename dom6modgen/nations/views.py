@@ -15,6 +15,10 @@ from decouple import config
 import os
 import numpy as np # Often needed by client libraries
 
+# Debugging loop
+from django.conf import settings 
+from django.http import HttpResponse
+
 # --- Settings & API Keys ---
 
 # Get the Gemini API Key from environment variables.
@@ -165,6 +169,23 @@ def nation_delete(request, pk):
         return redirect('nations:nation_list')
     context = { 'nation': nation }
     return render(request, 'nations/nation_confirm_delete.html', context)
+
+def debug_settings_view(request):
+    """A temporary view to inspect crucial Django settings at runtime."""
+    debug_info = {
+        "DEBUG": settings.DEBUG,
+        "SECURE_SSL_REDIRECT": getattr(settings, 'SECURE_SSL_REDIRECT', 'NOT SET'),
+        "SECURE_PROXY_SSL_HEADER": getattr(settings, 'SECURE_PROXY_SSL_HEADER', 'NOT SET'),
+        "CSRF_COOKIE_SECURE": getattr(settings, 'CSRF_COOKIE_SECURE', 'NOT SET'),
+        "SESSION_COOKIE_SECURE": getattr(settings, 'SESSION_COOKIE_SECURE', 'NOT SET'),
+        "SECURE_HSTS_SECONDS": getattr(settings, 'SECURE_HSTS_SECONDS', 'NOT SET'),
+        "ALLOWED_HOSTS": settings.ALLOWED_HOSTS,
+    }
+    response_content = "<h1>Django Settings Debug</h1><pre>"
+    for key, value in debug_info.items():
+        response_content += f"{key}: {value}\n"
+    response_content += "</pre>"
+    return HttpResponse(response_content)
 
 
 # --- AI Generation View (Using RAG) ---
