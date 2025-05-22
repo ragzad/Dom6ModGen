@@ -1,21 +1,14 @@
-{# dom6modgen/nations/templates/nations/nation_detail.html #}
-{% load static %} {# Load the static files tag #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nation Details: {% if nation %}{{ nation.name }}{% else %}Nation Not Found{% endif %}</title>
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-</head>
-<body>
+{% extends 'base.html' %}
 
+{% block title %}Nation Details: {% if nation %}{{ nation.name }}{% else %}Nation Not Found{% endif %}{% endblock %}
+
+{% block content %}
     {% if nation %}
         <h1>{{ nation.name }}</h1>
 
         {% if nation.description %}
             <h2>Description</h2>
-            {# Using linebreaksbr filter for multi-line text (requires 'humanize' app) #}
+            {# Using linebreaksbr filter for multi-line text #}
             <p>{{ nation.description|linebreaksbr }}</p>
         {% endif %}
 
@@ -41,6 +34,4 @@
 
     {# Link back to the main list page #}
     <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
-
-</body>
-</html>
+{% endblock content %}

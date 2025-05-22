@@ -1,0 +1,35 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dominions 6 Mod Generator{% endblock %}</title>
+    {# Link your main CSS stylesheet #}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    {# You can add other global head elements here, e.g., Bootstrap CSS if used #}
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{% url 'nations:nation_list' %}">Nations List</a>
+            {# Add other global navigation links here later as you implement more apps #}
+            {# Example: <a href="{% url 'units:unit_list' %}">Units List</a> #}
+            {# Example: <a href="{% url 'spells:spell_list' %}">Spells List</a> #}
+            {# Example: <a href="{% url 'items:item_list' %}">Items List</a> #}
+        </nav>
+    </header>
+
+    <main class="container">
+        {% block content %}
+        {# Content from child templates will be inserted here #}
+        {% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Dominions 6 Mod Generator</p>
+    </footer>
+
+    {# You can add global JavaScript files here if needed #}
+</body>
+</html>

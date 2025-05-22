@@ -44,7 +44,7 @@ ROOT_URLCONF = 'dom6modgen.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'dom6modgen' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

@@ -1,15 +1,8 @@
-{# dom6modgen/nations/templates/nations/nation_list.html #}
-{% load static %} {# Load the static files tag #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nations List</title>
-    {# Link your custom stylesheet #}
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-</head>
-<body>
+{% extends 'base.html' %}
+
+{% block title %}Nations List{% endblock %}
+
+{% block content %}
     <h1>List of Nations</h1>
 
     {% if nations %}
@@ -32,6 +25,4 @@
     {# Link to create a new nation #}
     <hr>
     <a href="{% url 'nations:nation_create' %}">Add New Nation</a>
-
-</body>
-</html>
+{% endblock content %}

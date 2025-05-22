@@ -1,25 +1,30 @@
-{# dom6modgen/nations/templates/nations/nation_list.html #}
-{% load static %} {# Load the static files tag #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confirm Deletion</title>
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-</head>
-<body>
-    <h1>Confirm Deletion</h1>
+{% extends 'base.html' %}
 
-    <p>Are you sure you want to delete the nation "{{ nation.name }}"?</p>
+{% block title %}Generated DM Code for {{ nation.name }}{% endblock %}
 
-    {# Form needed to submit the POST request to confirm deletion #}
-    <form method="post">
-        {% csrf_token %}
-        <button type="submit">Yes, delete</button>
-        {# Cancel link goes back to the detail page #}
-        <a href="{% url 'nations:nation_detail' nation.pk %}">Cancel</a>
-    </form>
+{% block content %}
+    <h1>Generated Mod Code for: {{ nation.name }}</h1>
 
-</body>
-</html>
+    {% if error_message %}
+        <p class="error">{{ error_message }}</p>
+    {% endif %}
+
+    <h2>Generated Code:</h2>
+    <pre>{{ generated_code }}</pre>
+
+    {# Section to display the prompt used #}
+    <div class="prompt">
+        <h3>Prompt Sent to AI (for debugging):</h3>
+        <pre>{{ prompt_used }}</pre>
+    </div>
+
+    {# Section to display retrieved RAG context #}
+    <div class="prompt">
+        <h3>Retrieved Context Sent to AI (from Vector DB):</h3>
+        <pre>{{ retrieved_context|default:"(RAG Context Placeholder)" }}</pre>
+    </div>
+
+    <hr>
+    <a href="{% url 'nations:nation_detail' nation.pk %}">Back to {{ nation.name }} Details</a><br>
+    <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
+{% endblock content %}

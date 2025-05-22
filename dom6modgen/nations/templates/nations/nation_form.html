@@ -1,16 +1,8 @@
-{# dom6modgen/nations/templates/nations/nation_form.html #}
-{% load static %} {# Load the static files tag #}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {# Setting title based on create or update context #}
-    <title>{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Create New Nation{% endif %}</title>
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-</head>
-<body>
-    {# Setting heading based on create or update context #}
+{% extends 'base.html' %}
+
+{% block title %}{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Create New Nation{% endif %}{% endblock %}
+
+{% block content %}
     <h1>{% if form.instance.pk %}Edit Nation: {{ form.instance.name }}{% else %}Create New Nation{% endif %}</h1>
 
     <form method="post">
@@ -31,6 +23,4 @@
     {% else %}
         <a href="{% url 'nations:nation_list' %}">Cancel</a>
     {% endif %}
-
-</body>
-</html>
+{% endblock content %}
