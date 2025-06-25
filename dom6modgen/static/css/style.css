@@ -387,3 +387,9 @@ table.styled-table tbody tr:hover {
 .workshop-sidebar .card {
     margin-bottom: 1.5rem;
 }
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto;
+}
