@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generation Workshop: {{ nation.name }}</title>
+</head>
+<body>
+    <div class="container">
+        <h1>Generation Workshop</h1>
+        <h2>{{ nation.name }}</h2>
+        <p><em>Initial Idea: {{ nation.description }}</em></p>
+        <p><strong>Status:</strong> <span class="status-{{ nation.generation_status }}">{{ nation.get_generation_status_display }}</span></p>
+        <hr>
+
+        <div class="workshop-layout">
+            <div class="workshop-main">
+                <h3>Generated Mod Code (.dm)</h3>
+                {% if nation.generated_mod_code %}
+                    <pre>{{ nation.generated_mod_code }}</pre>
+                {% else %}
+                    <p>No mod code has been generated yet. Start by expanding the nation concept.</p>
+                {% endif %}
+            </div>
+
+            <div class="workshop-sidebar">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Next Step</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if is_completed %}
+                            <p>Generation is complete!</p>
+                            <a href="{% url 'nations:nation_detail' nation.pk %}" class="btn">Back to Details</a>
+                        {% elif next_action %}
+                            <h4>{{ next_action.action_name }}</h4>
+                            <form method="post" action="{% url 'nations:run_generation_step' nation.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn">Run This Step</button>
+                            </form>
+                        {% else %}
+                            <p>An error occurred or the process has ended.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Expanded Concept</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if nation.expanded_description %}
+                            <p>{{ nation.expanded_description|linebreaks }}</p>
+                        {% else %}
+                            <p>The initial idea has not been expanded yet. This is the first step.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <hr>
+        <a href="{% url 'nations:nation_detail' nation.pk %}">Back to Nation Details</a> | 
+        <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
+    </div>
+</body>
+</html>
