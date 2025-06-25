@@ -5,29 +5,27 @@
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nations List</title>
+    <title>Nations List (Debug)</title>
 </head>
 <body>
     <div class="container">
-        <h1>List of Nations</h1>
+        <h1>List of Nations (Debug Mode)</h1>
 
         {% if nations %}
-        <ul class="styled-list">
+            <p>Found some nations. Trying to list them:</p>
+            <ul>
             {% for nation in nations %}
                 <li>
-                    {# This line requires the get_absolute_url method from Step 1 #}
-                    <a href="{{ nation.get_absolute_url }}">
-                        {{ nation.name }}
-                    </a>
+                    {{ nation.name }}
                 </li>
             {% endfor %}
-        </ul>
+            </ul>
         {% else %}
-            <p>No nations found. Add some to get started!</p>
+            <p>No nations were found in the database.</p>
         {% endif %}
 
         <hr>
-        <a href="{% url 'nations:nation_create' %}" class="btn">Add New Nation</a>
+        <p>If you can see this page, the view is working but the template logic was failing.</p>
     </div>
 </body>
 </html>
