@@ -1,10 +1,9 @@
-# dom6modgen/nations/views.py
-
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
-from .models import Nation, GENERATION_STATUS_CHOICES
+from .models import Nation
 from .forms import NationForm
+from gamedata.models import GameEntity
 import google.generativeai as genai
 import os
 
@@ -37,11 +36,8 @@ class NationDeleteView(DeleteView):
     template_name = 'nations/nation_confirm_delete.html'
     success_url = reverse_lazy('nations:nation_list')
 
-
 # --- New Segmented Generation Logic ---
 
-# This dictionary defines the full, expanded workflow for AI generation,
-# informed by the structure of the Dominions 6 Modding Manual.
 GENERATION_WORKFLOW = {
     'not_started': {
         'action_name': 'Expand Idea into a Full Concept',
@@ -77,7 +73,15 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'commanders': {
         'action_name': 'Generate Commanders',
-        'prompt_template': """Based on the 'Unit Roster (Commanders)' section of the Design Document, generate the Dominions 6 mod commands for all COMMANDERS. Use the #newmonster command for each. Ensure you include relevant stats like leadership, magic paths, and special abilities mentioned in the document.
+        'prompt_template': """Based on the 'Unit Roster (Commanders)' section of the Design Document, generate the Dominions 6 mod commands for all COMMANDERS. Use the #newmonster command for each. Ensure you include relevant stats like leadership, magic paths, and special abilities mentioned in the document. When assigning weapons and armor, you MUST use the numeric IDs from the reference lists provided.
+
+--- REFERENCE DATA START ---
+**Valid Vanilla Weapons:**
+{weapon_list}
+
+**Valid Vanilla Armors:**
+{armor_list}
+--- REFERENCE DATA END ---
 
 **Design Document:**
 {expanded_description}
@@ -91,7 +95,20 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'troops': {
         'action_name': 'Generate Troops',
-        'prompt_template': """Based on the 'Unit Roster (Troops)' section of the Design Document, generate the Dominions 6 mod commands for all standard TROOPS (non-commanders). Use the #newmonster command for each. Define their weapons and armor using existing game items or placeholder names for new ones (e.g., #weapon "My New Sword").
+        'prompt_template': """Based on the 'Unit Roster (Troops)' section of the Design Document, generate the Dominions 6 mod commands for all standard TROOPS. Use the #newmonster command.
+
+**CRITICAL INSTRUCTIONS:**
+1.  When assigning equipment (weapons, armor), you **MUST** use the exact numeric IDs from the provided reference lists.
+2.  Do not invent stats for vanilla items. Use the stats from the reference list as a guide.
+3.  If the design document requires a unique weapon or armor not on these lists, you **MUST** create a new one using the `#newweapon` or `#newarmor` command with a new ID number above 8000.
+
+--- REFERENCE DATA START ---
+**Valid Vanilla Weapons:**
+{weapon_list}
+
+**Valid Vanilla Armors:**
+{armor_list}
+--- REFERENCE DATA END ---
 
 **Design Document:**
 {expanded_description}
@@ -133,7 +150,7 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'items': {
         'action_name': 'Generate Weapons & Armor',
-        'prompt_template': """Based on the 'Unique Spells/Items' section and any placeholder equipment mentioned for troops/commanders in the Design Document, generate the Dominions 6 mod commands for any NEW WEAPONS or ARMOR. Use #newweapon and #newarmor. If no new gear is needed, output only the comment '-- No new items required by design document.'.
+        'prompt_template': """Based on the 'Unique Spells/Items' section and any placeholder equipment mentioned for troops/commanders in the Design Document, generate the Dominions 6 mod commands for any NEW WEAPONS or ARMOR. Use #newweapon and #newarmor with IDs above 8000. If no new gear is needed, output only the comment '-- No new items required by design document.'.
 
 **Design Document:**
 {expanded_description}
@@ -163,23 +180,16 @@ Review the following mod code:
 
 Provide your feedback as a simple list of potential errors. If the file appears syntactically correct and ready for testing, respond with only the phrase: 'Syntax validation passed. The mod appears to be structured correctly and is ready for in-game testing.'""",
         'next_status': 'completed',
-        'output_field': 'generated_mod_code', # Append the validation result to the code
+        'output_field': 'generated_mod_code',
     },
 }
 
 def nation_workshop_view(request, pk):
-    """
-    Displays the main workshop page for a nation, showing progress
-    and the next available action.
-    """
     nation = get_object_or_404(Nation, pk=pk)
-    
     current_status = nation.generation_status
     next_action = None
-    
     if current_status not in ['completed', 'failed']:
         next_action = GENERATION_WORKFLOW.get(current_status)
-
     context = {
         'nation': nation,
         'next_action': next_action,
@@ -187,21 +197,27 @@ def nation_workshop_view(request, pk):
     }
     return render(request, 'nations/nation_workshop.html', context)
 
-
 def run_generation_step_view(request, pk):
-    """
-    Executes the current generation step for a nation.
-    """
     nation = get_object_or_404(Nation, pk=pk)
     current_status = nation.generation_status
 
     if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
         step_config = GENERATION_WORKFLOW[current_status]
+
+        # Fetch and format reference data from the database
+        weapon_data = "\\n".join(
+            list(GameEntity.objects.filter(entity_type='weapon').values_list('reference_text', flat=True))
+        )
+        armor_data = "\\n".join(
+            list(GameEntity.objects.filter(entity_type='armor').values_list('reference_text', flat=True))
+        )
         
         prompt = step_config['prompt_template'].format(
             nation_description=nation.description,
             expanded_description=nation.expanded_description,
-            generated_mod_code=nation.generated_mod_code or ""
+            generated_mod_code=nation.generated_mod_code or "",
+            weapon_list=weapon_data,
+            armor_list=armor_data
         ).strip()
         
         try:
@@ -209,25 +225,20 @@ def run_generation_step_view(request, pk):
             if not api_key:
                 raise ValueError("GEMINI_API_KEY not found in environment variables.")
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             response = model.generate_content(prompt)
             
             output_field = step_config['output_field']
             
-            # For code-generation steps, append the new code.
-            # For the first step and validation, overwrite or append as needed.
             if output_field == 'generated_mod_code':
-                # Add comments to delineate steps clearly in the final file
-                header = f"\n\n--//-- STEP: {current_status.upper()} --//--"
-                new_content = f"{header}\n{response.text.strip()}"
+                header = f"\\n\\n--//-- STEP: {current_status.upper()} --//--"
+                new_content = f"{header}\\n{response.text.strip()}"
                 
-                # If it's the very first code step, initialize the field. Otherwise, append.
                 if nation.generated_mod_code is None or current_status == 'nation_details':
                     nation.generated_mod_code = new_content
                 else:
                     nation.generated_mod_code += new_content
             else:
-                # This handles the initial 'expanded_description' step
                 setattr(nation, output_field, response.text)
 
             nation.generation_status = step_config['next_status']
@@ -239,4 +250,3 @@ def run_generation_step_view(request, pk):
             nation.save()
 
     return redirect('nations:nation_workshop', pk=nation.pk)
-

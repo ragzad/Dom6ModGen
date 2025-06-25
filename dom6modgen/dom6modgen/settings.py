@@ -7,9 +7,6 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
-
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-fallback-key-for-local-dev-only-replace-me')
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -33,6 +30,7 @@ INSTALLED_APPS = [
     'units.apps.UnitsConfig',
     'spells.apps.SpellsConfig',
     'items.apps.ItemsConfig',
+    'gamedata.apps.GamedataConfig'
 ]
 
 MIDDLEWARE = [
