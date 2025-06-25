@@ -1,11 +1,12 @@
+import os
+import random
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from .models import Nation
 from .forms import NationForm
-from gamedata.models import GameEntity
+from gamedata.models import GameEntity, ModExample
 import google.generativeai as genai
-import os
 
 # --- Class-Based Views (Required for basic site navigation) ---
 class NationListView(ListView):
@@ -71,6 +72,10 @@ Present this as a clear, well-organized document. This is a creative planning st
 {mod_commands_list}
 --- MOD COMMAND REFERENCE END ---
 
+--- FULL MOD EXAMPLE START ---
+{mod_example}
+--- FULL MOD EXAMPLE END ---
+
 **Design Document:**
 {expanded_description}""",
         'next_status': 'commanders',
@@ -82,8 +87,9 @@ Present this as a clear, well-organized document. This is a creative planning st
 
 **CRITICAL INSTRUCTIONS:**
 1.  Generate a `#newmonster` block for EACH commander, ending it with `#end`.
-2.  Use commands **only** from the provided Mod Command Reference list. This is your complete toolbox.
-3.  Use numeric IDs from the provided Weapon/Armor Reference Data.
+2.  Your output MUST EXACTLY follow the syntax of a real Dominions 6 mod file. Study the Full Mod Example provided.
+3.  Use commands **only** from the provided Mod Command Reference list.
+4.  Use numeric IDs from the provided Weapon/Armor Reference Data.
 
 --- MOD COMMAND REFERENCE START ---
 {mod_commands_list}
@@ -95,6 +101,10 @@ Present this as a clear, well-organized document. This is a creative planning st
 **Valid Vanilla Armors:**
 {armor_list}
 --- WEAPON/ARMOR REFERENCE DATA END ---
+
+--- FULL MOD EXAMPLE START ---
+{mod_example}
+--- FULL MOD EXAMPLE END ---
 
 **Design Document:**
 {expanded_description}
@@ -112,9 +122,10 @@ Present this as a clear, well-organized document. This is a creative planning st
 
 **CRITICAL INSTRUCTIONS:**
 1.  Generate a `#newmonster` block for EACH troop, ending it with `#end`.
-2.  Use commands **only** from the provided Mod Command Reference list. This is your complete toolbox.
-3.  Use numeric IDs from the provided Weapon/Armor Reference Data.
-4.  If a new item is required, use the `#newweapon` or `#newarmor` command with an ID > 8000 BEFORE defining the unit that uses it.
+2.  Your output MUST EXACTLY follow the syntax of a real Dominions 6 mod file. Study the Full Mod Example provided.
+3.  Use commands **only** from the provided Mod Command Reference list.
+4.  Use numeric IDs from the provided Weapon/Armor Reference Data.
+5.  If a new item is required, use the `#newweapon` or `#newarmor` command with an ID > 8000 BEFORE defining the unit that uses it.
 
 --- MOD COMMAND REFERENCE START ---
 {mod_commands_list}
@@ -126,6 +137,10 @@ Present this as a clear, well-organized document. This is a creative planning st
 **Valid Vanilla Armors:**
 {armor_list}
 --- WEAPON/ARMOR REFERENCE DATA END ---
+
+--- FULL MOD EXAMPLE START ---
+{mod_example}
+--- FULL MOD EXAMPLE END ---
 
 **Design Document:**
 {expanded_description}
@@ -144,8 +159,9 @@ Present this as a clear, well-organized document. This is a creative planning st
 **CRITICAL INSTRUCTIONS:**
 1. Generate a `#newmonster` block for EACH hero, ending it with `#end`.
 2. Remember to include the `#hero` and `#unique` commands from the reference list.
-3. Use commands **only** from the provided Mod Command Reference list.
-4. Use numeric IDs from the provided Weapon/Armor Reference Data.
+3. Your output MUST EXACTLY follow the syntax of a real Dominions 6 mod file. Study the Full Mod Example provided.
+4. Use commands **only** from the provided Mod Command Reference list.
+5. Use numeric IDs from the provided Weapon/Armor Reference Data.
 
 --- MOD COMMAND REFERENCE START ---
 {mod_commands_list}
@@ -157,6 +173,10 @@ Present this as a clear, well-organized document. This is a creative planning st
 **Valid Vanilla Armors:**
 {armor_list}
 --- WEAPON/ARMOR REFERENCE DATA END ---
+
+--- FULL MOD EXAMPLE START ---
+{mod_example}
+--- FULL MOD EXAMPLE END ---
 
 **Design Document:**
 {expanded_description}
@@ -172,6 +192,10 @@ Present this as a clear, well-organized document. This is a creative planning st
         'action_name': 'Generate National Spells',
         'prompt_template': """Based on the 'Unique Spells/Items' section of the Design Document, generate the Dominions 6 mod commands for any unique national spells. Use the #newspell command and follow the correct syntax. If no spells were described, output only the comment '-- No new spells required by design document.'.
 
+--- FULL MOD EXAMPLE START ---
+{mod_example}
+--- FULL MOD EXAMPLE END ---
+
 **Design Document:**
 {expanded_description}
 
@@ -185,6 +209,10 @@ Present this as a clear, well-organized document. This is a creative planning st
     'items': {
         'action_name': 'Generate Weapons & Armor',
         'prompt_template': """Based on the 'Unique Spells/Items' section and any placeholder equipment mentioned for troops/commanders in the Design Document, generate the Dominions 6 mod commands for any NEW WEAPONS or ARMOR. Use #newweapon and #newarmor with IDs above 8000. Follow the syntax exactly. If no new gear is needed, output only the comment '-- No new items required by design document.'.
+
+--- FULL MOD EXAMPLE START ---
+{mod_example}
+--- FULL MOD EXAMPLE END ---
 
 **Design Document:**
 {expanded_description}
@@ -218,18 +246,11 @@ Provide your feedback as a concise, bulleted list of specific errors found (e.g.
 }
 
 def nation_workshop_view(request, pk):
-    """
-    Displays the main workshop page for a nation, showing progress
-    and the next available action.
-    """
     nation = get_object_or_404(Nation, pk=pk)
-    
     current_status = nation.generation_status
     next_action = None
-    
     if current_status not in ['completed', 'failed']:
         next_action = GENERATION_WORKFLOW.get(current_status)
-
     context = {
         'nation': nation,
         'next_action': next_action,
@@ -237,18 +258,14 @@ def nation_workshop_view(request, pk):
     }
     return render(request, 'nations/nation_workshop.html', context)
 
-
 def run_generation_step_view(request, pk):
-    """
-    Executes the current generation step, grounding the AI with data from the database.
-    """
     nation = get_object_or_404(Nation, pk=pk)
     current_status = nation.generation_status
 
     if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
         step_config = GENERATION_WORKFLOW[current_status]
 
-        # Fetch and format reference data from the database
+        # --- Fetch all reference data from the database ---
         weapon_data = "\\n".join(
             list(GameEntity.objects.filter(entity_type='weapons').values_list('reference_text', flat=True))
         )
@@ -259,6 +276,13 @@ def run_generation_step_view(request, pk):
             [f"#{cmd}" for cmd in GameEntity.objects.filter(entity_type='attribute_keys').values_list('name', flat=True)]
         )
         
+        # --- Fetch a random mod example to use as a few-shot prompt ---
+        mod_example_text = ""
+        all_examples = list(ModExample.objects.all())
+        if all_examples:
+            mod_example_text = random.choice(all_examples).mod_text
+        # -----------
+        
         prompt_context = {
             "nation_description": nation.description,
             "expanded_description": nation.expanded_description,
@@ -266,6 +290,7 @@ def run_generation_step_view(request, pk):
             "weapon_list": weapon_data,
             "armor_list": armor_data,
             "mod_commands_list": mod_commands_data,
+            "mod_example": mod_example_text,
         }
         prompt = step_config['prompt_template'].format(**prompt_context)
         
