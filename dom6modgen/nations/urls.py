@@ -1,13 +1,16 @@
 from django.urls import path
-from . import views # Import views from the current directory (nations app)
+from . import views
 
-app_name = 'nations' 
+app_name = 'nations'
 
 urlpatterns = [
-    path('', views.nation_list, name='nation_list'),
-    path('<int:pk>/', views.nation_detail, name='nation_detail'),
-    path('new/', views.nation_create, name='nation_create'),
-    path('<int:pk>/edit/', views.nation_update, name='nation_update'),
-    path('<int:pk>/delete/', views.nation_delete, name='nation_delete'),
-    path('<int:pk>/generate_dm/', views.nation_generate_dm, name='nation_generate_dm'),
+    path('', views.NationListView.as_view(), name='nation_list'),
+    path('<int:pk>/', views.NationDetailView.as_view(), name='nation_detail'),
+    path('new/', views.NationCreateView.as_view(), name='nation_create'),
+    path('<int:pk>/edit/', views.NationUpdateView.as_view(), name='nation_update'),
+    path('<int:pk>/delete/', views.NationDeleteView.as_view(), name='nation_delete'),
+    
+    # New URLs for the segmented generation process
+    path('<int:pk>/workshop/', views.nation_workshop_view, name='nation_workshop'),
+    path('<int:pk>/workshop/run_step/', views.run_generation_step_view, name='run_generation_step'),
 ]

@@ -509,3 +509,23 @@ table.styled-table tbody tr:hover {
         margin-bottom: 0;
     }
 }
+
+.workshop-layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+}
+
+.workshop-main {
+    flex: 2; /* Takes up 2/3 of the space */
+    min-width: 300px;
+}
+
+.workshop-sidebar {
+    flex: 1; /* Takes up 1/3 of the space */
+    min-width: 250px;
+}
+
+.workshop-sidebar .card {
+    margin-bottom: 1.5rem;
+}
