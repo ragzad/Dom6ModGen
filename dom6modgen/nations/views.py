@@ -36,7 +36,7 @@ class NationDeleteView(DeleteView):
     template_name = 'nations/nation_confirm_delete.html'
     success_url = reverse_lazy('nations:nation_list')
 
-# --- New Segmented Generation Logic ---
+# --- Generation Logic ---
 
 GENERATION_WORKFLOW = {
     'not_started': {
@@ -73,7 +73,7 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'commanders': {
         'action_name': 'Generate Commanders',
-        'prompt_template': """Based on the 'Unit Roster (Commanders)' section of the Design Document, generate the Dominions 6 mod commands for all COMMANDERS. Use the #newmonster command for each. Ensure you include relevant stats like leadership, magic paths, and special abilities mentioned in the document. When assigning weapons and armor, you MUST use the numeric IDs from the reference lists provided.
+        'prompt_template': """Based on the 'Unit Roster (Commanders)' section of the Design Document, generate the Dominions 6 mod commands for all COMMANDERS. Use the #newmonster command for each. When assigning equipment, you **MUST** use the exact numeric IDs from the provided lists of vanilla game items.
 
 --- REFERENCE DATA START ---
 **Valid Vanilla Weapons:**
@@ -99,8 +99,8 @@ Present this as a clear, well-organized document. This is a creative planning st
 
 **CRITICAL INSTRUCTIONS:**
 1.  When assigning equipment (weapons, armor), you **MUST** use the exact numeric IDs from the provided reference lists.
-2.  Do not invent stats for vanilla items. Use the stats from the reference list as a guide.
-3.  If the design document requires a unique weapon or armor not on these lists, you **MUST** create a new one using the `#newweapon` or `#newarmor` command with a new ID number above 8000.
+2.  Do not invent stats for vanilla items.
+3.  If the design document requires a unique weapon or armor not on these lists, create a new one using the `#newweapon` or `#newarmor` command with a new ID number above 8000.
 
 --- REFERENCE DATA START ---
 **Valid Vanilla Weapons:**
@@ -122,7 +122,15 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'heroes': {
         'action_name': 'Generate National Heroes',
-        'prompt_template': """Based on the 'Unique Heroes' section of the Design Document, generate the Dominions 6 mod commands for the nation's HEROES. Use the #newmonster command, and remember to include the #hero and #unique tags for each.
+        'prompt_template': """Based on the 'Unique Heroes' section of the Design Document, generate the Dominions 6 mod commands for the nation's HEROES. Use the #newmonster command, and remember to include the #hero and #unique tags for each. When assigning equipment, you **MUST** use the exact numeric IDs from the provided lists of vanilla game items.
+
+--- REFERENCE DATA START ---
+**Valid Vanilla Weapons:**
+{weapon_list}
+
+**Valid Vanilla Armors:**
+{armor_list}
+--- REFERENCE DATA END ---
 
 **Design Document:**
 {expanded_description}
@@ -166,13 +174,6 @@ Present this as a clear, well-organized document. This is a creative planning st
         'action_name': 'Validate Mod File Syntax',
         'prompt_template': """You are a Dominions 6 modding expert. Your task is to review the following completed mod file for syntax errors, logical inconsistencies, or missing commands that would prevent it from working in the game. Do NOT provide creative feedback. Only identify technical errors.
 
-Your review should check for:
-- Correct command names (e.g., #newmonster, #end).
-- Correct number and type of arguments for each command.
-- Mismatched IDs (e.g., defining a weapon with one ID but assigning a different ID to a unit).
-- Missing #end tags.
-- Any other common syntax errors according to the Dominions 6 modding manual.
-
 Review the following mod code:
 ```dominions
 {generated_mod_code}
@@ -204,12 +205,13 @@ def run_generation_step_view(request, pk):
     if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
         step_config = GENERATION_WORKFLOW[current_status]
 
-        # Fetch and format reference data from the database
+        # --- CORRECTED DATABASE QUERIES ---
+        # Fetching with plural names to match the database
         weapon_data = "\\n".join(
-            list(GameEntity.objects.filter(entity_type='weapon').values_list('reference_text', flat=True))
+            list(GameEntity.objects.filter(entity_type='weapons').values_list('reference_text', flat=True))
         )
         armor_data = "\\n".join(
-            list(GameEntity.objects.filter(entity_type='armor').values_list('reference_text', flat=True))
+            list(GameEntity.objects.filter(entity_type='armors').values_list('reference_text', flat=True))
         )
         
         prompt = step_config['prompt_template'].format(
