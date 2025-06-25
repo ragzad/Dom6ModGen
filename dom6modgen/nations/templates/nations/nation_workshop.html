@@ -35,11 +35,27 @@
                             <p>Generation is complete!</p>
                             <a href="{% url 'nations:nation_detail' nation.pk %}" class="btn">Back to Details</a>
                         {% elif next_action %}
-                            <h4>{{ next_action.action_name }}</h4>
-                            <form method="post" action="{% url 'nations:run_generation_step' nation.pk %}">
+                            
+                            <!-- Generation Form -->
+                            <form id="generation-form" method="post" action="{% url 'nations:run_generation_step' nation.pk %}">
                                 {% csrf_token %}
+                                <h4>{{ next_action.action_name }}</h4>
                                 <button type="submit" class="btn">Run This Step</button>
                             </form>
+
+                            <!-- Loading Indicator (Initially Hidden) -->
+                            <div id="loading-indicator" style="display: none; text-align: center;">
+                                <div class="spinner">
+                                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="50" cy="50" r="45" stroke-width="5" fill="none" stroke="#8B4513" stroke-linecap="round">
+                                            <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite" />
+                                            <animate attributeName="stroke-dasharray" values="1,200;89,200;89,200" dur="1.5s" repeatCount="indefinite" />
+                                        </circle>
+                                    </svg>
+                                </div>
+                                <p style="font-weight: bold; color: #4A2E1F; margin-top: 1rem;">The mages are weaving their spells...</p>
+                            </div>
+
                         {% else %}
                             <p>An error occurred or the process has ended.</p>
                         {% endif %}
@@ -64,5 +80,21 @@
         <a href="{% url 'nations:nation_detail' nation.pk %}">Back to Nation Details</a> | 
         <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
     </div>
+
+    <script>
+        // Simple script to show the loading indicator on form submission
+        const form = document.getElementById('generation-form');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        if (form) {
+            form.addEventListener('submit', function() {
+                // Hide the form
+                form.style.display = 'none';
+                // Show the loading indicator
+                loadingIndicator.style.display = 'block';
+            });
+        }
+    </script>
 </body>
 </html>
+
