@@ -8,28 +8,29 @@
     <title>Nations List</title>
 </head>
 <body>
-    <h1>List of Nations</h1>
+    <div class="container">
+        <h1>List of Nations</h1>
 
-    {% if nations %}
-    <ul>
-        {% for nation in nations %}
-            <li>
-                {# Linking the nation name to its detail page #}
-                <a href="{% url 'nations:nation_detail' nation.pk %}">
-                    {{ nation.name }}
-                </a>
-            </li>
-        {% empty %}
-            <li>No nations found. Add some via the admin interface!</li>
-        {% endfor %}
-    </ul>
-    {% else %}
-        <p>No nations list was provided.</p>
-    {% endif %}
+        {% if nations %}
+        <ul class="styled-list">
+            {% for nation in nations %}
+                <li>
+                    {# Linking the nation name to its detail page #}
+                    <a href="{% url 'nations:nation_detail' nation.pk %}">
+                        {{ nation.name }}
+                    </a>
+                </li>
+            {% empty %}
+                <li>No nations found. Add some via the admin interface!</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+            <p>No nations list was provided.</p>
+        {% endif %}
 
-    {# Link to create a new nation #}
-    <hr>
-    <a href="{% url 'nations:nation_create' %}">Add New Nation</a>
-
+        {# Link to create a new nation #}
+        <hr>
+        <a href="{% url 'nations:nation_create' %}" class="btn">Add New Nation</a>
+    </div>
 </body>
 </html>
