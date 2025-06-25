@@ -2,18 +2,19 @@
 
 from django.db import models
 from django.contrib.auth.models import User
-from django.urls import reverse 
+from django.urls import reverse
 
-# The different stages of the mod generation process
+# The NEW, more granular stages of the mod generation process
 GENERATION_STATUS_CHOICES = [
     ('not_started', 'Not Started'),
-    ('prompt_expansion', 'Step 1: Expanding Prompt'),
-    ('nation_details', 'Step 2: Nation Details'),
+    ('prompt_expansion', 'Step 1: Expanding Concept'),
+    ('nation_details', 'Step 2: Nation Details & Tags'),
     ('commanders', 'Step 3: Commanders'),
     ('troops', 'Step 4: Troops'),
-    ('weapons', 'Step 5: Weapons'),
-    ('armor', 'Step 6: Armor'),
-    ('spells', 'Step 7: Spells'),
+    ('heroes', 'Step 5: National Heroes'),
+    ('spells', 'Step 6: National Spells'),
+    ('items', 'Step 7: Weapons & Armor'),
+    ('validation', 'Step 8: Final Validation'),
     ('completed', 'Completed'),
     ('failed', 'Failed'),
 ]
@@ -38,6 +39,7 @@ class Nation(models.Model):
         help_text="The accumulating .dm mod code generated at each step."
     )
 
+    # Use the new, more detailed choices
     generation_status = models.CharField(
         max_length=20,
         choices=GENERATION_STATUS_CHOICES,
@@ -55,3 +57,4 @@ class Nation(models.Model):
     def get_absolute_url(self):
         """Returns the canonical URL for a nation instance."""
         return reverse('nations:nation_detail', kwargs={'pk': self.pk})
+
