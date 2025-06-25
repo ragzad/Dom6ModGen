@@ -10,15 +10,16 @@
 }
 
 html {
-    font-size: 16px; /* Base font size */
+    font-size: 16px;
     scroll-behavior: smooth;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-family: 'Georgia', 'Times New Roman', serif;
     line-height: 1.65;
-    background-color: #f8f9fa; /* Light grey background */
-    color: #212529; /* Darker text for readability */
+    background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png');
+    background-color: #6B4F3A; /* A fallback color */
+    color: #2C1E12; /* Dark brown text for readability */
     display: flex;
     flex-direction: column;
     min-height: 100vh;
@@ -29,37 +30,39 @@ body {
 h1, h2, h3, h4, h5, h6 {
     margin-top: 1.5rem;
     margin-bottom: 1rem;
-    font-weight: 500;
+    font-weight: bold;
     line-height: 1.2;
-    color: #343a40; /* Slightly softer black for headings */
+    color: #4A2E1F;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
 }
 
-h1 { font-size: 2.25rem; }
-h2 { font-size: 1.875rem; }
-h3 { font-size: 1.5rem; }
-h4 { font-size: 1.25rem; }
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.75rem; }
+h4 { font-size: 1.5rem; }
 
 p {
     margin-bottom: 1rem;
 }
 
 a {
-    color: #007bff;
+    color: #8B4513; /* SaddleBrown */
     text-decoration: none;
-    transition: color 0.15s ease-in-out, text-decoration 0.15s ease-in-out;
+    transition: color 0.15s ease-in-out;
 }
 
 a:hover {
-    color: #0056b3;
+    color: #A0522D; /* Sienna */
     text-decoration: underline;
 }
 
 code, pre {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-family: "Courier New", Courier, monospace;
     font-size: 0.875em;
-    background-color: #e9ecef;
+    background-color: #F5DEB3; /* Wheat */
     padding: 0.2em 0.4em;
     border-radius: 3px;
+    border: 1px solid #DEB887; /* BurlyWood */
 }
 
 pre {
@@ -69,47 +72,60 @@ pre {
     overflow: auto;
     white-space: pre-wrap;
     word-wrap: break-word;
-    border: 1px solid #ced4da;
+    border: 2px solid #8B4513; /* SaddleBrown */
     border-radius: 0.25rem;
+    background-color: #FDF5E6; /* OldLace */
 }
 
 hr {
     border: 0;
-    height: 1px;
-    background-color: #dee2e6; /* Lighter hr */
+    height: 2px;
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(74, 46, 31, 0.75), rgba(0, 0, 0, 0));
     margin: 2rem 0;
 }
 
 /* --- Layout & Structure --- */
 .container {
     width: 90%;
-    max-width: 1140px; /* Max width for larger screens */
+    max-width: 1140px;
     margin-left: auto;
     margin-right: auto;
     padding: 20px;
+    background: #FDF5E6; /* OldLace, like parchment */
+    border: 2px solid #8B4513; /* SaddleBrown */
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    margin-top: 2rem;
+    margin-bottom: 2rem;
 }
 
 header.site-header {
-    background-color: #343a40; /* Dark header */
-    color: #fff;
+    background-color: #5C4033; /* Dark Wood */
+    color: #FDF5E6; /* OldLace */
     padding: 1rem 0;
     margin-bottom: 2rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    border-bottom: 4px solid #8B4513; /* SaddleBrown */
 }
 
 header.site-header .container {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: none;
+    border: none;
+    box-shadow: none;
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
+
 header.site-header h1 a {
-    color: #fff;
+    color: #FDF5E6;
     text-decoration: none;
-    font-size: 1.75rem;
+    font-size: 2rem;
 }
 header.site-header h1 a:hover {
-    color: #f8f9fa;
+    color: #FFF;
 }
 
 
@@ -125,54 +141,53 @@ nav.main-nav ul li {
 }
 
 nav.main-nav ul li a {
-    color: #f8f9fa; /* Lighter text for nav links */
+    color: #FDF5E6;
     text-decoration: none;
-    font-weight: 500;
+    font-weight: bold;
     padding: 0.5rem 0.75rem;
     border-radius: 0.25rem;
 }
 nav.main-nav ul li a:hover,
 nav.main-nav ul li a.active {
-    background-color: #495057; /* Hover/active state for nav */
+    background-color: #8B4513;
     color: #fff;
     text-decoration: none;
 }
 
 main.content-area {
-    flex-grow: 1; /* Ensures footer stays at the bottom */
+    flex-grow: 1;
     padding-bottom: 2rem;
 }
 
 footer.site-footer {
-    background-color: #e9ecef; /* Lighter footer */
-    color: #6c757d; /* Grey text for footer */
+    background-color: #5C4033;
+    color: #FDF5E6;
     text-align: center;
     padding: 1.5rem 0;
-    margin-top: auto; /* Pushes footer to bottom */
+    margin-top: auto;
     font-size: 0.9em;
-    border-top: 1px solid #dee2e6;
+    border-top: 4px solid #8B4513;
 }
 
 /* --- Cards (for lists, details etc.) --- */
 .card {
-    background-color: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem; /* Slightly more rounded */
+    background-color: #FDF5E6;
+    border: 2px solid #8B4513;
+    border-radius: 0; 
     margin-bottom: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .card-header {
     padding: 0.75rem 1.25rem;
     margin-bottom: 0;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    border-top-left-radius: calc(0.375rem - 1px);
-    border-top-right-radius: calc(0.375rem - 1px);
+    background-color: #D2B48C; /* Tan */
+    border-bottom: 2px solid #8B4513;
 }
 .card-header h1, .card-header h2, .card-header h3 {
     margin-top: 0;
     margin-bottom: 0;
+    color: #4A2E1F;
 }
 
 .card-body {
@@ -181,10 +196,8 @@ footer.site-footer {
 
 .card-footer {
     padding: 0.75rem 1.25rem;
-    background-color: #f8f9fa;
-    border-top: 1px solid #dee2e6;
-    border-bottom-right-radius: calc(0.375rem - 1px);
-    border-bottom-left-radius: calc(0.375rem - 1px);
+    background-color: #D2B48C;
+    border-top: 2px solid #8B4513;
 }
 
 /* --- Forms --- */
@@ -193,7 +206,7 @@ form {
     flex-direction: column;
 }
 
-form p { /* Django wraps form fields in <p> by default with form.as_p */
+form p {
     margin-bottom: 1rem;
     display: flex;
     flex-direction: column;
@@ -201,8 +214,8 @@ form p { /* Django wraps form fields in <p> by default with form.as_p */
 
 form label {
     margin-bottom: 0.5rem;
-    font-weight: 500;
-    color: #495057;
+    font-weight: bold;
+    color: #4A2E1F;
 }
 
 form input[type="text"],
@@ -216,15 +229,13 @@ form select {
     width: 100%;
     padding: 0.5rem 0.75rem;
     font-size: 1rem;
+    font-family: 'Georgia', 'Times New Roman', serif;
     font-weight: 400;
     line-height: 1.5;
-    color: #495057;
+    color: #4A2E1F;
     background-color: #fff;
-    background-clip: padding-box;
-    border: 1px solid #ced4da;
-    appearance: none; /* Remove default styling */
-    border-radius: 0.25rem;
-    transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    border: 1px solid #8B4513;
+    border-radius: 0;
 }
 form input[type="text"]:focus,
 form input[type="email"]:focus,
@@ -233,9 +244,9 @@ form input[type="url"]:focus,
 form input[type="number"]:focus,
 form textarea:focus,
 form select:focus {
-    border-color: #80bdff;
+    border-color: #A0522D;
     outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    box-shadow: 0 0 5px rgba(139, 69, 19, 0.5);
 }
 
 form textarea {
@@ -246,151 +257,83 @@ form textarea {
 .form-actions {
     margin-top: 1rem;
     display: flex;
-    gap: 0.5rem; /* Space between buttons */
+    gap: 0.5rem;
 }
 
 /* --- Buttons --- */
 .btn {
     display: inline-block;
-    font-weight: 400;
+    font-weight: bold;
     line-height: 1.5;
-    color: #212529;
+    color: #FDF5E6;
     text-align: center;
     text-decoration: none;
     vertical-align: middle;
     cursor: pointer;
-    user-select: none;
-    background-color: transparent;
-    border: 1px solid transparent;
-    padding: 0.5rem 1rem; /* Slightly larger padding */
+    background-color: #8B4513;
+    border: 2px solid #5C4033;
+    padding: 0.5rem 1rem;
     font-size: 1rem;
-    border-radius: 0.25rem;
-    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    border-radius: 0;
+    transition: background-color .15s ease-in-out, border-color .15s ease-in-out;
 }
 
-.btn-primary {
+.btn:hover {
+    background-color: #A0522D;
+    border-color: #4A2E1F;
     color: #fff;
-    background-color: #007bff;
-    border-color: #007bff;
-}
-.btn-primary:hover {
-    color: #fff;
-    background-color: #0069d9;
-    border-color: #0062cc;
-}
-
-.btn-secondary {
-    color: #fff;
-    background-color: #6c757d;
-    border-color: #6c757d;
-}
-.btn-secondary:hover {
-    color: #fff;
-    background-color: #5a6268;
-    border-color: #545b62;
-}
-
-.btn-success {
-    color: #fff;
-    background-color: #28a745;
-    border-color: #28a745;
-}
-.btn-success:hover {
-    color: #fff;
-    background-color: #218838;
-    border-color: #1e7e34;
-}
-
-.btn-danger {
-    color: #fff;
-    background-color: #dc3545;
-    border-color: #dc3545;
-}
-.btn-danger:hover {
-    color: #fff;
-    background-color: #c82333;
-    border-color: #bd2130;
-}
-
-.btn-warning {
-    color: #212529;
-    background-color: #ffc107;
-    border-color: #ffc107;
-}
-.btn-warning:hover {
-    color: #212529;
-    background-color: #e0a800;
-    border-color: #d39e00;
-}
-
-.btn-info {
-    color: #fff;
-    background-color: #17a2b8;
-    border-color: #17a2b8;
-}
-.btn-info:hover {
-    color: #fff;
-    background-color: #138496;
-    border-color: #117a8b;
-}
-
-.btn-link {
-    font-weight: 400;
-    color: #007bff;
-    text-decoration: none;
-    background-color: transparent;
-    border: none;
-}
-.btn-link:hover {
-    color: #0056b3;
-    text-decoration: underline;
 }
 
 /* --- Lists --- */
 ul.styled-list, ol.styled-list {
     list-style: none;
     padding-left: 0;
+    background-color: #FDF5E6;
+    border: 2px solid #8B4513;
+    padding: 1rem;
 }
 ul.styled-list li, ol.styled-list li {
     padding: 0.75rem;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    border-bottom: 1px dashed #8B4513;
 }
 ul.styled-list li:last-child, ol.styled-list li:last-child {
     border-bottom: none;
 }
 ul.styled-list li a {
-    font-weight: 500;
+    font-weight: bold;
+    color: #8B4513;
+}
+ul.styled-list li a:hover {
+    color: #A0522D;
 }
 
 /* --- Tables --- */
 table.styled-table {
     width: 100%;
     margin-bottom: 1rem;
-    color: #212529;
+    color: #2C1E12;
     border-collapse: collapse;
+    border: 2px solid #8B4513;
 }
 table.styled-table th,
 table.styled-table td {
     padding: 0.75rem;
     vertical-align: top;
-    border-top: 1px solid #dee2e6;
+    border: 1px solid #D2B48C;
 }
 table.styled-table thead th {
     vertical-align: bottom;
-    border-bottom: 2px solid #dee2e6;
-    background-color: #f8f9fa; /* Header background for table */
+    border-bottom: 2px solid #8B4513;
+    background-color: #D2B48C;
 }
 table.styled-table tbody tr:nth-of-type(odd) {
-    background-color: rgba(0,0,0,.03); /* Zebra striping */
+    background-color: #F5DEB3; /* Wheat */
 }
 table.styled-table tbody tr:hover {
-    background-color: rgba(0,0,0,.06);
+    background-color: #DEB887; /* BurlyWood */
 }
 
-/* --- Messages & Alerts (for Django messages framework) --- */
+/* --- Messages & Alerts --- */
 .messages {
     list-style: none;
     padding: 0;
@@ -399,18 +342,13 @@ table.styled-table tbody tr:hover {
 .messages li {
     padding: 1rem 1.25rem;
     margin-bottom: 1rem;
-    border: 1px solid transparent;
-    border-radius: 0.25rem;
-}
-.messages li.debug {
-    color: #495057;
-    background-color: #e9ecef;
-    border-color: #d3d9df;
+    border: 2px solid;
+    border-radius: 0;
 }
 .messages li.info {
-    color: #0c5460;
-    background-color: #d1ecf1;
-    border-color: #bee5eb;
+    color: #004085;
+    background-color: #cce5ff;
+    border-color: #b8daff;
 }
 .messages li.success {
     color: #155724;
@@ -426,106 +364,4 @@ table.styled-table tbody tr:hover {
     color: #721c24;
     background-color: #f8d7da;
     border-color: #f5c6cb;
-}
-
-
-/* --- Specific Page Styling Examples --- */
-
-/* For nation_list.html */
-.nation-list-actions {
-    margin-bottom: 1.5rem;
-}
-
-/* For nation_detail.html */
-.detail-actions {
-    margin-top: 1.5rem;
-    margin-bottom: 1.5rem;
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
-}
-.detail-section {
-    margin-bottom: 1.5rem;
-}
-.detail-section h2 {
-    border-bottom: 1px solid #eee;
-    padding-bottom: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-/* For nation_generate_dm.html */
-.generated-code-container,
-.prompt-container,
-.retrieved-context-container {
-    margin-bottom: 1.5rem;
-}
-.generated-code-container pre,
-.prompt-container pre,
-.retrieved-context-container pre {
-    max-height: 500px; /* Limit height and make scrollable */
-}
-
-/* Utility classes */
-.text-center { text-align: center; }
-.mt-1 { margin-top: 0.25rem !important; }
-.mt-2 { margin-top: 0.5rem !important; }
-.mt-3 { margin-top: 1rem !important; }
-.mb-1 { margin-bottom: 0.25rem !important; }
-.mb-2 { margin-bottom: 0.5rem !important; }
-.mb-3 { margin-bottom: 1rem !important; }
-.p-1 { padding: 0.25rem !important; }
-.p-2 { padding: 0.5rem !important; }
-.p-3 { padding: 1rem !important; }
-.font-weight-bold { font-weight: bold; }
-
-/* Responsive Considerations (very basic example) */
-@media (max-width: 768px) {
-    header.site-header .container {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    nav.main-nav ul {
-        flex-direction: column;
-        width: 100%;
-        margin-top: 1rem;
-    }
-    nav.main-nav ul li {
-        margin-left: 0;
-        margin-bottom: 0.5rem;
-        width: 100%;
-    }
-    nav.main-nav ul li a {
-        display: block; /* Make nav links take full width */
-    }
-
-    .form-actions {
-        flex-direction: column;
-    }
-    .form-actions .btn {
-        width: 100%;
-        margin-bottom: 0.5rem;
-    }
-    .form-actions .btn:last-child {
-        margin-bottom: 0;
-    }
-}
-
-.workshop-layout {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2rem;
-}
-
-.workshop-main {
-    flex: 2; /* Takes up 2/3 of the space */
-    min-width: 300px;
-}
-
-.workshop-sidebar {
-    flex: 1; /* Takes up 1/3 of the space */
-    min-width: 250px;
-}
-
-.workshop-sidebar .card {
-    margin-bottom: 1.5rem;
 }
