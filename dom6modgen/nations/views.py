@@ -36,7 +36,8 @@ class NationDeleteView(DeleteView):
     template_name = 'nations/nation_confirm_delete.html'
     success_url = reverse_lazy('nations:nation_list')
 
-# --- Generation Logic ---
+
+# --- New Segmented Generation Logic with Full Command Reference ---
 
 GENERATION_WORKFLOW = {
     'not_started': {
@@ -64,7 +65,11 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'nation_details': {
         'action_name': 'Generate Nation Details & Tags',
-        'prompt_template': """Based *only* on the 'National Features' section of the following Design Document, generate the initial Dominions 6 mod commands for the nation. This includes only #newnation, #era, #epithet, #descr, #summary, and all relevant nation-level tags (e.g., #idealcold, #fortcost, #def, #researchbonus, #unresthalf, etc.). Do not generate any units, items, or spells yet.
+        'prompt_template': """Based on the 'National Features' section of the Design Document, generate the initial Dominions 6 mod commands. Use commands from the reference list that apply at a national level (e.g., #era, #epithet, #idealcold, #fortcost, #def, #researchbonus).
+
+--- MOD COMMAND REFERENCE START ---
+{mod_commands_list}
+--- MOD COMMAND REFERENCE END ---
 
 **Design Document:**
 {expanded_description}""",
@@ -73,15 +78,23 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'commanders': {
         'action_name': 'Generate Commanders',
-        'prompt_template': """Based on the 'Unit Roster (Commanders)' section of the Design Document, generate the Dominions 6 mod commands for all COMMANDERS. Use the #newmonster command for each. When assigning equipment, you **MUST** use the exact numeric IDs from the provided lists of vanilla game items.
+        'prompt_template': """You are an expert Dominions 6 modder. Generate the mod commands for the COMMANDERS described in the Design Document.
 
---- REFERENCE DATA START ---
+**CRITICAL INSTRUCTIONS:**
+1.  Generate a `#newmonster` block for EACH commander, ending it with `#end`.
+2.  Use commands **only** from the provided Mod Command Reference list. This is your complete toolbox.
+3.  Use numeric IDs from the provided Weapon/Armor Reference Data.
+
+--- MOD COMMAND REFERENCE START ---
+{mod_commands_list}
+--- MOD COMMAND REFERENCE END ---
+
+--- WEAPON/ARMOR REFERENCE DATA START ---
 **Valid Vanilla Weapons:**
 {weapon_list}
-
 **Valid Vanilla Armors:**
 {armor_list}
---- REFERENCE DATA END ---
+--- WEAPON/ARMOR REFERENCE DATA END ---
 
 **Design Document:**
 {expanded_description}
@@ -95,20 +108,24 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'troops': {
         'action_name': 'Generate Troops',
-        'prompt_template': """Based on the 'Unit Roster (Troops)' section of the Design Document, generate the Dominions 6 mod commands for all standard TROOPS. Use the #newmonster command.
+        'prompt_template': """You are an expert Dominions 6 modder. Generate the mod commands for the standard TROOPS described in the Design Document.
 
 **CRITICAL INSTRUCTIONS:**
-1.  When assigning equipment (weapons, armor), you **MUST** use the exact numeric IDs from the provided reference lists.
-2.  Do not invent stats for vanilla items.
-3.  If the design document requires a unique weapon or armor not on these lists, create a new one using the `#newweapon` or `#newarmor` command with a new ID number above 8000.
+1.  Generate a `#newmonster` block for EACH troop, ending it with `#end`.
+2.  Use commands **only** from the provided Mod Command Reference list. This is your complete toolbox.
+3.  Use numeric IDs from the provided Weapon/Armor Reference Data.
+4.  If a new item is required, use the `#newweapon` or `#newarmor` command with an ID > 8000 BEFORE defining the unit that uses it.
 
---- REFERENCE DATA START ---
+--- MOD COMMAND REFERENCE START ---
+{mod_commands_list}
+--- MOD COMMAND REFERENCE END ---
+
+--- WEAPON/ARMOR REFERENCE DATA START ---
 **Valid Vanilla Weapons:**
 {weapon_list}
-
 **Valid Vanilla Armors:**
 {armor_list}
---- REFERENCE DATA END ---
+--- WEAPON/ARMOR REFERENCE DATA END ---
 
 **Design Document:**
 {expanded_description}
@@ -122,15 +139,24 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'heroes': {
         'action_name': 'Generate National Heroes',
-        'prompt_template': """Based on the 'Unique Heroes' section of the Design Document, generate the Dominions 6 mod commands for the nation's HEROES. Use the #newmonster command, and remember to include the #hero and #unique tags for each. When assigning equipment, you **MUST** use the exact numeric IDs from the provided lists of vanilla game items.
+        'prompt_template': """Based on the 'Unique Heroes' section of the Design Document, generate the Dominions 6 mod commands for the HEROES.
 
---- REFERENCE DATA START ---
+**CRITICAL INSTRUCTIONS:**
+1. Generate a `#newmonster` block for EACH hero, ending it with `#end`.
+2. Remember to include the `#hero` and `#unique` commands from the reference list.
+3. Use commands **only** from the provided Mod Command Reference list.
+4. Use numeric IDs from the provided Weapon/Armor Reference Data.
+
+--- MOD COMMAND REFERENCE START ---
+{mod_commands_list}
+--- MOD COMMAND REFERENCE END ---
+
+--- WEAPON/ARMOR REFERENCE DATA START ---
 **Valid Vanilla Weapons:**
 {weapon_list}
-
 **Valid Vanilla Armors:**
 {armor_list}
---- REFERENCE DATA END ---
+--- WEAPON/ARMOR REFERENCE DATA END ---
 
 **Design Document:**
 {expanded_description}
@@ -144,7 +170,7 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'spells': {
         'action_name': 'Generate National Spells',
-        'prompt_template': """Based on the 'Unique Spells/Items' section of the Design Document, generate the Dominions 6 mod commands for any unique national RITUALS or COMBAT SPELLS. Use the #newspell command. If no spells were described, output only the comment '-- No new spells required by design document.'.
+        'prompt_template': """Based on the 'Unique Spells/Items' section of the Design Document, generate the Dominions 6 mod commands for any unique national spells. Use the #newspell command and follow the correct syntax. If no spells were described, output only the comment '-- No new spells required by design document.'.
 
 **Design Document:**
 {expanded_description}
@@ -158,7 +184,7 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'items': {
         'action_name': 'Generate Weapons & Armor',
-        'prompt_template': """Based on the 'Unique Spells/Items' section and any placeholder equipment mentioned for troops/commanders in the Design Document, generate the Dominions 6 mod commands for any NEW WEAPONS or ARMOR. Use #newweapon and #newarmor with IDs above 8000. If no new gear is needed, output only the comment '-- No new items required by design document.'.
+        'prompt_template': """Based on the 'Unique Spells/Items' section and any placeholder equipment mentioned for troops/commanders in the Design Document, generate the Dominions 6 mod commands for any NEW WEAPONS or ARMOR. Use #newweapon and #newarmor with IDs above 8000. Follow the syntax exactly. If no new gear is needed, output only the comment '-- No new items required by design document.'.
 
 **Design Document:**
 {expanded_description}
@@ -172,31 +198,24 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'validation': {
         'action_name': 'Validate Mod File Syntax',
-        'prompt_template': """You are a Dominions 6 modding expert. Your task is to review the following completed mod file for syntax errors, logical inconsistencies, or missing commands that would prevent it from working in the game. Do NOT provide creative feedback. Only identify technical errors.
+        'prompt_template': """You are a meticulous Dominions 6 mod syntax validator. Your task is to analyze the following completed mod file and identify any technical errors that would cause it to fail loading in the game. You must be strict and follow the modding manual precisely.
 
-Review the following mod code:
+**Validation Checklist:**
+1.  **Block Integrity:** Does every `#newmonster`, `#newweapon`, `#newarmor`, and `#newspell` block have a corresponding `#end` command?
+2.  **Command Spelling:** Are all commands (e.g., `#name`, `#hp`, `#magicskill`) spelled correctly? Check for common mistakes like `#strength` instead of `#str`.
+3.  **Argument Validity:** Does each command have the correct number and type of arguments? For example, `#hp` takes one number, `#weapon` takes one number, `#magicskill` takes a path letter and a number.
+4.  **String Formatting:** Are all string arguments, like in `#name` and `#descr`, enclosed in double quotes?
+
+Please review the following mod code against this checklist:
 ```dominions
 {generated_mod_code}
 ```
 
-Provide your feedback as a simple list of potential errors. If the file appears syntactically correct and ready for testing, respond with only the phrase: 'Syntax validation passed. The mod appears to be structured correctly and is ready for in-game testing.'""",
+Provide your feedback as a concise, bulleted list of specific errors found (e.g., "ERROR: Missing #end for monster 'Clan Chieftain'", "ERROR: The `#strength` command should be `#str`"). If no errors are found, respond with ONLY the phrase: 'Syntax validation passed. The mod appears to be structured correctly and is ready for in-game testing.'""",
         'next_status': 'completed',
         'output_field': 'generated_mod_code',
     },
 }
-
-def nation_workshop_view(request, pk):
-    nation = get_object_or_404(Nation, pk=pk)
-    current_status = nation.generation_status
-    next_action = None
-    if current_status not in ['completed', 'failed']:
-        next_action = GENERATION_WORKFLOW.get(current_status)
-    context = {
-        'nation': nation,
-        'next_action': next_action,
-        'is_completed': current_status == 'completed'
-    }
-    return render(request, 'nations/nation_workshop.html', context)
 
 def run_generation_step_view(request, pk):
     nation = get_object_or_404(Nation, pk=pk)
@@ -205,22 +224,29 @@ def run_generation_step_view(request, pk):
     if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
         step_config = GENERATION_WORKFLOW[current_status]
 
-        # --- CORRECTED DATABASE QUERIES ---
-        # Fetching with plural names to match the database
+        # Fetch and format all reference data from the database
         weapon_data = "\\n".join(
             list(GameEntity.objects.filter(entity_type='weapons').values_list('reference_text', flat=True))
         )
         armor_data = "\\n".join(
             list(GameEntity.objects.filter(entity_type='armors').values_list('reference_text', flat=True))
         )
+        # --- NEW ---
+        # Get the full list of all possible mod commands to use as a reference.
+        mod_commands_data = "\\n".join(
+            [f"#{cmd}" for cmd in GameEntity.objects.filter(entity_type='attribute_keys').values_list('name', flat=True)]
+        )
+        # -----------
         
-        prompt = step_config['prompt_template'].format(
-            nation_description=nation.description,
-            expanded_description=nation.expanded_description,
-            generated_mod_code=nation.generated_mod_code or "",
-            weapon_list=weapon_data,
-            armor_list=armor_data
-        ).strip()
+        prompt_context = {
+            "nation_description": nation.description,
+            "expanded_description": nation.expanded_description,
+            "generated_mod_code": nation.generated_mod_code or "",
+            "weapon_list": weapon_data,
+            "armor_list": armor_data,
+            "mod_commands_list": mod_commands_data, # Add the new list to the context
+        }
+        prompt = step_config['prompt_template'].format(**prompt_context)
         
         try:
             api_key = os.environ.get("GEMINI_API_KEY")
