@@ -15,7 +15,7 @@
         <ul class="styled-list">
             {% for nation in nations %}
                 <li>
-                    {# This link requires the get_absolute_url method in the Nation model #}
+                    {# This uses the modern get_absolute_url method from the Segmentation branch #}
                     <a href="{{ nation.get_absolute_url }}">
                         {{ nation.name }}
                     </a>
@@ -23,6 +23,7 @@
             {% endfor %}
         </ul>
         {% else %}
+            {# This uses the clearer "empty" message from the Segmentation branch #}
             <p>No nations found. Add one to get started!</p>
         {% endif %}
 
