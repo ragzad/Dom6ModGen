@@ -8,38 +8,38 @@
     <title>Nation Details: {% if nation %}{{ nation.name }}{% else %}Nation Not Found{% endif %}</title>
 </head>
 <body>
+    <div class="container">
+        {% if nation %}
+            <h1>{{ nation.name }}</h1>
 
-    {% if nation %}
-        <h1>{{ nation.name }}</h1>
+            {% if nation.description %}
+                <h2>Description</h2>
+                <p>{{ nation.description|linebreaksbr }}</p>
+            {% endif %}
 
-        {% if nation.description %}
-            <h2>Description</h2>
-            {# Using linebreaksbr filter for multi-line text (requires 'humanize' app) #}
-            <p>{{ nation.description|linebreaksbr }}</p>
-        {% endif %}
+            {% if nation.creator %}
+                <p><strong>Creator:</strong> {{ nation.creator.username }}</p>
+            {% endif %}
 
-        {% if nation.creator %}
-            <p><strong>Creator:</strong> {{ nation.creator.username }}</p>
-        {% endif %}
+            <p><strong>Created At:</strong> {{ nation.created_at }}</p>
+            <p><strong>Last Updated:</strong> {{ nation.updated_at }}</p>
 
-        <p><strong>Created At:</strong> {{ nation.created_at }}</p>
-        <p><strong>Last Updated:</strong> {{ nation.updated_at }}</p>
-
-        {# Action Links for this specific nation #}
+            <hr>
+            
+            {# This section combines the clean layout with the new Workshop button #}
             <div class="form-actions">
-            <a href="{% url 'nations:nation_update' nation.pk %}" class="btn">Edit Nation</a>
-            <a href="{% url 'nations:nation_delete' nation.pk %}" class="btn">Delete Nation</a>
-            <a href="{% url 'nations:nation_workshop' nation.pk %}" class="btn">Open Generation Workshop</a>
-        </div>
+                <a href="{% url 'nations:nation_update' nation.pk %}" class="btn">Edit Nation</a>
+                <a href="{% url 'nations:nation_delete' nation.pk %}" class="btn">Delete Nation</a>
+                <a href="{% url 'nations:nation_workshop' nation.pk %}" class="btn">Open Generation Workshop</a>
+            </div>
 
-    {% else %}
-        <h1>Nation Not Found</h1>
-        <p>The nation you requested could not be found.</p>
+        {% else %}
+            <h1>Nation Not Found</h1>
+            <p>The nation you requested could not be found.</p>
+        {% endif %}
+
         <hr>
-    {% endif %}
-
-    {# Link back to the main list page #}
-    <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
-
+        <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
+    </div>
 </body>
 </html>
