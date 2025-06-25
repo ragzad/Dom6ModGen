@@ -15,20 +15,18 @@
         <ul class="styled-list">
             {% for nation in nations %}
                 <li>
-                    {# Linking the nation name to its detail page #}
-                    <a href="{% url 'nations:nation_detail' nation.pk %}">
+                    {# This uses the modern get_absolute_url method from the Segmentation branch #}
+                    <a href="{{ nation.get_absolute_url }}">
                         {{ nation.name }}
                     </a>
                 </li>
-            {% empty %}
-                <li>No nations found. Add some via the admin interface!</li>
             {% endfor %}
         </ul>
         {% else %}
-            <p>No nations list was provided.</p>
+            {# This uses the clearer "empty" message from the Segmentation branch #}
+            <p>No nations found. Add one to get started!</p>
         {% endif %}
 
-        {# Link to create a new nation #}
         <hr>
         <a href="{% url 'nations:nation_create' %}" class="btn">Add New Nation</a>
     </div>

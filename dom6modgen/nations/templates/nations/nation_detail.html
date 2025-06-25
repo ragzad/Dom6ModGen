@@ -25,19 +25,20 @@
             <p><strong>Last Updated:</strong> {{ nation.updated_at }}</p>
 
             <hr>
+            
+            {# This section combines the clean layout with the new Workshop button #}
             <div class="form-actions">
                 <a href="{% url 'nations:nation_update' nation.pk %}" class="btn">Edit Nation</a>
                 <a href="{% url 'nations:nation_delete' nation.pk %}" class="btn">Delete Nation</a>
-                <a href="{% url 'nations:nation_generate_dm' nation.pk %}" class="btn">Generate Mod Code</a>
+                <a href="{% url 'nations:nation_workshop' nation.pk %}" class="btn">Open Generation Workshop</a>
             </div>
-            <hr>
 
         {% else %}
             <h1>Nation Not Found</h1>
             <p>The nation you requested could not be found.</p>
-            <hr>
         {% endif %}
 
+        <hr>
         <a href="{% url 'nations:nation_list' %}">Back to Nations List</a>
     </div>
 </body>
