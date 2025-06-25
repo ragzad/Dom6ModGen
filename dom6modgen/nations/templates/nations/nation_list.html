@@ -15,7 +15,7 @@
         <ul class="styled-list">
             {% for nation in nations %}
                 <li>
-                    {# This now correctly uses the get_absolute_url method we defined #}
+                    {# This line requires the get_absolute_url method from Step 1 #}
                     <a href="{{ nation.get_absolute_url }}">
                         {{ nation.name }}
                     </a>

@@ -1,6 +1,8 @@
+# dom6modgen/nations/models.py
+
 from django.db import models
 from django.contrib.auth.models import User
-from django.urls import reverse # Make sure to import reverse
+from django.urls import reverse 
 
 # The different stages of the mod generation process
 GENERATION_STATUS_CHOICES = [
@@ -50,7 +52,6 @@ class Nation(models.Model):
     def __str__(self):
         return self.name
 
-    # --- ADD THIS METHOD ---
     def get_absolute_url(self):
         """Returns the canonical URL for a nation instance."""
         return reverse('nations:nation_detail', kwargs={'pk': self.pk})
