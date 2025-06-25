@@ -7,7 +7,7 @@ from gamedata.models import GameEntity
 import google.generativeai as genai
 import os
 
-# --- Class-Based Views (Unchanged) ---
+# --- Class-Based Views (Required for basic site navigation) ---
 class NationListView(ListView):
     model = Nation
     template_name = 'nations/nation_list.html'
@@ -37,7 +37,7 @@ class NationDeleteView(DeleteView):
     success_url = reverse_lazy('nations:nation_list')
 
 
-# --- New Segmented Generation Logic with Full Command Reference ---
+# --- Generation Logic & Workflow ---
 
 GENERATION_WORKFLOW = {
     'not_started': {
@@ -65,7 +65,7 @@ Present this as a clear, well-organized document. This is a creative planning st
     },
     'nation_details': {
         'action_name': 'Generate Nation Details & Tags',
-        'prompt_template': """Based on the 'National Features' section of the Design Document, generate the initial Dominions 6 mod commands. Use commands from the reference list that apply at a national level (e.g., #era, #epithet, #idealcold, #fortcost, #def, #researchbonus).
+        'prompt_template': """Based *only* on the 'National Features' section of the Design Document, generate the initial Dominions 6 mod commands. Use commands from the reference list that apply at a national level (e.g., #era, #epithet, #idealcold, #fortcost, #def, #researchbonus).
 
 --- MOD COMMAND REFERENCE START ---
 {mod_commands_list}
@@ -217,26 +217,47 @@ Provide your feedback as a concise, bulleted list of specific errors found (e.g.
     },
 }
 
+def nation_workshop_view(request, pk):
+    """
+    Displays the main workshop page for a nation, showing progress
+    and the next available action.
+    """
+    nation = get_object_or_404(Nation, pk=pk)
+    
+    current_status = nation.generation_status
+    next_action = None
+    
+    if current_status not in ['completed', 'failed']:
+        next_action = GENERATION_WORKFLOW.get(current_status)
+
+    context = {
+        'nation': nation,
+        'next_action': next_action,
+        'is_completed': current_status == 'completed'
+    }
+    return render(request, 'nations/nation_workshop.html', context)
+
+
 def run_generation_step_view(request, pk):
+    """
+    Executes the current generation step, grounding the AI with data from the database.
+    """
     nation = get_object_or_404(Nation, pk=pk)
     current_status = nation.generation_status
 
     if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
         step_config = GENERATION_WORKFLOW[current_status]
 
-        # Fetch and format all reference data from the database
+        # Fetch and format reference data from the database
         weapon_data = "\\n".join(
             list(GameEntity.objects.filter(entity_type='weapons').values_list('reference_text', flat=True))
         )
         armor_data = "\\n".join(
             list(GameEntity.objects.filter(entity_type='armors').values_list('reference_text', flat=True))
         )
-        # --- NEW ---
-        # Get the full list of all possible mod commands to use as a reference.
         mod_commands_data = "\\n".join(
             [f"#{cmd}" for cmd in GameEntity.objects.filter(entity_type='attribute_keys').values_list('name', flat=True)]
         )
-        # -----------
         
         prompt_context = {
             "nation_description": nation.description,
@@ -244,7 +265,7 @@ def run_generation_step_view(request, pk):
             "generated_mod_code": nation.generated_mod_code or "",
             "weapon_list": weapon_data,
             "armor_list": armor_data,
-            "mod_commands_list": mod_commands_data, # Add the new list to the context
+            "mod_commands_list": mod_commands_data,
         }
         prompt = step_config['prompt_template'].format(**prompt_context)
         
