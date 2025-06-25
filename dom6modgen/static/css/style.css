@@ -43,6 +43,8 @@ h4 { font-size: 1.5rem; }
 
 p {
     margin-bottom: 1rem;
+    /* --- THIS IS THE ADDED LINE --- */
+    color: #1a1a1a; /* A very dark gray, almost black, for maximum readability */
 }
 
 a {
@@ -364,4 +366,24 @@ table.styled-table tbody tr:hover {
     color: #721c24;
     background-color: #f8d7da;
     border-color: #f5c6cb;
+}
+/* --- Workshop Layout --- */
+.workshop-layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+}
+
+.workshop-main {
+    flex: 2; /* Takes up 2/3 of the space */
+    min-width: 300px;
+}
+
+.workshop-sidebar {
+    flex: 1; /* Takes up 1/3 of the space */
+    min-width: 250px;
+}
+
+.workshop-sidebar .card {
+    margin-bottom: 1.5rem;
 }
