@@ -299,7 +299,7 @@ def run_generation_step_view(request, pk):
             if not api_key:
                 raise ValueError("GEMINI_API_KEY not found in environment variables.")
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17')
             response = model.generate_content(prompt)
             
             output_field = step_config['output_field']
