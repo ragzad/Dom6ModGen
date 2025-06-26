@@ -1,14 +1,16 @@
 import os
 import random
+import json
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
+from django.db.models import Q
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from .models import Nation
 from .forms import NationForm
 from gamedata.models import GameEntity, ModExample
 import google.generativeai as genai
 
-# --- Class-Based Views (Required for basic site navigation) ---
+# --- Class-Based Views ---
 class NationListView(ListView):
     model = Nation
     template_name = 'nations/nation_list.html'
@@ -36,10 +38,129 @@ class NationDeleteView(DeleteView):
     model = Nation
     template_name = 'nations/nation_confirm_delete.html'
     success_url = reverse_lazy('nations:nation_list')
+# ---
+
+def nation_workshop_view(request, pk):
+    nation = get_object_or_404(Nation, pk=pk)
+    # This view's logic remains the same
+    current_status = nation.generation_status
+    next_action = None
+    if current_status not in ['completed', 'failed']:
+        next_action = GENERATION_WORKFLOW.get(current_status)
+    context = {
+        'nation': nation,
+        'next_action': next_action,
+        'is_completed': current_status == 'completed'
+    }
+    return render(request, 'nations/nation_workshop.html', context)
 
 
-# --- Generation Logic & Workflow ---
+# --- Helper Function for Smart Search ---
+def perform_keyword_search(entity_type, keywords_string):
+    """
+    Performs a simple keyword search on the GameEntity database.
+    """
+    if not keywords_string:
+        return GameEntity.objects.none() # Return empty queryset if no keywords
 
+    # Split keywords by comma and trim whitespace
+    keywords = [keyword.strip() for keyword in keywords_string.split(',')]
+    
+    # Build a Q object for an OR search across keywords in the 'name' field
+    query = Q()
+    for keyword in keywords:
+        query |= Q(name__icontains=keyword)
+        
+    return GameEntity.objects.filter(Q(entity_type=entity_type) & query)
+
+
+# --- Core Generation Logic ---
+def run_generation_step_view(request, pk):
+    nation = get_object_or_404(Nation, pk=pk)
+    current_status = nation.generation_status
+
+    if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
+        step_config = GENERATION_WORKFLOW[current_status]
+        
+        try:
+            # --- STEP 1: AI-Powered Search Query Generation ---
+            # This prompt asks the AI to identify what to search for.
+            search_query_prompt = f"""
+            Based on the following design document, what types of weapons and armor would be thematically appropriate for the units described in the '{current_status}' section?
+            
+            **Design Document:**
+            {nation.expanded_description}
+            
+            Please respond with ONLY a JSON object containing search keywords. For example:
+            {{
+                "weapon_keywords": "longbow, spear, elven blade",
+                "armor_keywords": "leather armor, scale mail, shield"
+            }}
+            """
+            
+            # Configure and call the API
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError("GEMINI_API_KEY not found in environment variables.")
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17')
+            
+            search_response = model.generate_content(search_query_prompt)
+            search_keywords = json.loads(search_response.text)
+
+            # --- STEP 2: Perform Database Search ---
+            weapon_results = perform_keyword_search('weapons', search_keywords.get('weapon_keywords', ''))
+            armor_results = perform_keyword_search('armors', search_keywords.get('armor_keywords', ''))
+
+            # Format the search results for the final prompt
+            weapon_data = "\\n".join(list(weapon_results.values_list('reference_text', flat=True)))
+            armor_data = "\\n".join(list(armor_results.values_list('reference_text', flat=True)))
+
+            # --- STEP 3: Final Generation with Targeted Context ---
+            mod_commands_data = "\\n".join([f"#{cmd}" for cmd in GameEntity.objects.filter(entity_type='attribute_keys').values_list('name', flat=True)])
+            mod_example_text = ""
+            all_examples = list(ModExample.objects.all())
+            if all_examples:
+                mod_example_text = random.choice(all_examples).mod_text
+
+            prompt_context = {
+                "nation_description": nation.description or "",
+                "expanded_description": nation.expanded_description or "",
+                "generated_mod_code": nation.generated_mod_code or "",
+                "weapon_list": weapon_data or "No relevant weapons found.",
+                "armor_list": armor_data or "No relevant armor found.",
+                "mod_commands_list": mod_commands_data,
+                "mod_example": mod_example_text,
+            }
+            final_prompt = step_config['prompt_template'].format(**prompt_context)
+            final_response = model.generate_content(final_prompt)
+            
+            # --- Update Nation Object (same as before) ---
+            output_field = step_config['output_field']
+            if output_field == 'generated_mod_code':
+                header = f"\\n\\n--//-- STEP: {current_status.upper()} --//--"
+                new_content = f"{header}\\n{final_response.text.strip()}"
+                
+                if nation.generated_mod_code is None or current_status == 'nation_details':
+                    nation.generated_mod_code = new_content
+                else:
+                    nation.generated_mod_code += new_content
+            else:
+                setattr(nation, output_field, response.text)
+
+            nation.generation_status = step_config['next_status']
+            nation.save()
+
+        except Exception as e:
+            nation.generation_status = 'failed'
+            print(f"Error during generation step '{current_status}': {e}")
+            nation.save()
+
+    return redirect('nations:nation_workshop', pk=nation.pk)
+    
+    
+# NOTE: The GENERATION_WORKFLOW dictionary would remain as it was in the last version,
+# with all the placeholders like {weapon_list}, {armor_list}, etc.
 GENERATION_WORKFLOW = {
     'not_started': {
         'action_name': 'Expand Idea into a Full Concept',
@@ -244,83 +365,3 @@ Provide your feedback as a concise, bulleted list of specific errors found (e.g.
         'output_field': 'generated_mod_code',
     },
 }
-
-def nation_workshop_view(request, pk):
-    nation = get_object_or_404(Nation, pk=pk)
-    current_status = nation.generation_status
-    next_action = None
-    if current_status not in ['completed', 'failed']:
-        next_action = GENERATION_WORKFLOW.get(current_status)
-    context = {
-        'nation': nation,
-        'next_action': next_action,
-        'is_completed': current_status == 'completed'
-    }
-    return render(request, 'nations/nation_workshop.html', context)
-
-def run_generation_step_view(request, pk):
-    nation = get_object_or_404(Nation, pk=pk)
-    current_status = nation.generation_status
-
-    if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
-        step_config = GENERATION_WORKFLOW[current_status]
-
-        # --- Fetch all reference data from the database ---
-        weapon_data = "\\n".join(
-            list(GameEntity.objects.filter(entity_type='weapons').values_list('reference_text', flat=True))
-        )
-        armor_data = "\\n".join(
-            list(GameEntity.objects.filter(entity_type='armors').values_list('reference_text', flat=True))
-        )
-        mod_commands_data = "\\n".join(
-            [f"#{cmd}" for cmd in GameEntity.objects.filter(entity_type='attribute_keys').values_list('name', flat=True)]
-        )
-        
-        # --- Fetch a random mod example to use as a few-shot prompt ---
-        mod_example_text = ""
-        all_examples = list(ModExample.objects.all())
-        if all_examples:
-            mod_example_text = random.choice(all_examples).mod_text
-        # -----------
-        
-        prompt_context = {
-            "nation_description": nation.description,
-            "expanded_description": nation.expanded_description,
-            "generated_mod_code": nation.generated_mod_code or "",
-            "weapon_list": weapon_data,
-            "armor_list": armor_data,
-            "mod_commands_list": mod_commands_data,
-            "mod_example": mod_example_text,
-        }
-        prompt = step_config['prompt_template'].format(**prompt_context)
-        
-        try:
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                raise ValueError("GEMINI_API_KEY not found in environment variables.")
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17')
-            response = model.generate_content(prompt)
-            
-            output_field = step_config['output_field']
-            
-            if output_field == 'generated_mod_code':
-                header = f"\\n\\n--//-- STEP: {current_status.upper()} --//--"
-                new_content = f"{header}\\n{response.text.strip()}"
-                
-                if nation.generated_mod_code is None or current_status == 'nation_details':
-                    nation.generated_mod_code = new_content
-                else:
-                    nation.generated_mod_code += new_content
-            else:
-                setattr(nation, output_field, response.text)
-
-            nation.generation_status = step_config['next_status']
-            nation.save()
-
-        except Exception as e:
-            nation.generation_status = 'failed'
-            print(f"Error during generation step '{current_status}': {e}")
-            nation.save()
-
-    return redirect('nations:nation_workshop', pk=nation.pk)
