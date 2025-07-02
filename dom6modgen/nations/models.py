@@ -15,9 +15,9 @@ GENERATION_STATUS_CHOICES = [
     ('spells', 'Step 6: National Spells'),
     ('items', 'Step 7: Weapons & Armor'),
     ('validation', 'Step 8: Final Validation'),
-    ('fixing_errors', 'Step 9: Applying Fixes'), # New status for self-correction
+    # Removed: ('fixing_errors', 'Step 9: Applying Fixes'),
     ('completed', 'Completed'),
-    ('failed', 'Failed'),
+    ('failed', 'Failed'), # 'failed' status will now only be used for unexpected exceptions
 ]
 
 
@@ -48,7 +48,7 @@ class Nation(models.Model):
         help_text="The current stage of the mod generation process."
     )
     
-    # New field to store the last validation report for self-correction
+    # Field to store the last validation report
     last_validation_report = models.TextField(
         blank=True,
         null=True,

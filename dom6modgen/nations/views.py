@@ -58,7 +58,7 @@ Please expand this into a structured Design Document covering the following sect
     * **Dominion & Scales:** Describe their ideal scales (e.g., Order 3, Production 1, Heat 2, etc.) and any special Dominion effects.
     * **Recruitment:** Mention any special recruitment rules (e.g., can only recruit mages in capital, gets special units in forests).
 4.  **Unit Roster (Commanders):** Describe 3-5 thematic commanders. Include their role (e.g., mage, scout, basic leader, heavy leader), a physical description, and key abilities (e.g., "Adept Fire Mage with Fire 2", "Leads 80 troops").
-5.  **Unit Roster (Troops):** Describe 5-7 thematic troops. Include their role (e.g., basic infantry, archer, elite sacred), a physical description, and their equipment.
+5.  **Unit Roster (Troops): Privilege 5-7 thematic troops. Include their role (e.g., basic infantry, archer, elite sacred), a physical description, and their equipment.
 6.  **Unique Heroes:** Describe 1-2 unique national heroes that could appear, including their backstory and special abilities.
 7.  **Unique Spells/Items:** Propose 1-2 ideas for national spells or forgeable items that fit the nation's theme.
 
@@ -254,49 +254,8 @@ Please review the following mod code against this checklist:
 ```
 
 Provide your feedback as a concise, bulleted list of specific errors found (e.g., "ERROR: Missing #end for monster 'Clan Chieftain'", "ERROR: The `#strength` command should be `#str`"). If no errors are found, respond with ONLY the phrase: 'Syntax validation passed. The mod appears to be structured correctly and is ready for in-game testing.'""",
-        'next_status': 'completed', # This will be conditionally changed in run_generation_step_view
+        'next_status': 'completed', # Always transitions to completed after validation
         'output_field': 'last_validation_report', # Output of validation goes here
-    },
-    'fixing_errors': {
-        'action_name': 'Applying Automated Fixes',
-        'prompt_template': """You are an expert Dominions 6 modder and a meticulous debugger. Your task is to correct the syntax and logical errors in the provided Dominions 6 mod code based on the detailed error report.
-
-**CRITICAL INSTRUCTIONS FOR FIXING:**
-1.  **Review the Error Report Carefully:** Address EACH error listed in the `Last Validation Report`.
-2.  **Output the FULL, CORRECTED Mod Code:** Do NOT just output the fixes. Output the *entire* `generated_mod_code` with all necessary corrections applied.
-3.  **Maintain Mod Structure:** Preserve the existing structure of the mod, including comments and headers for each step.
-4.  **Ensure Block Integrity:** Every `#newmonster`, `#newweapon`, `#newarmor`, `#newitem`, `#newspell`, and `#selectnation` block MUST be closed with `#end`. This is a common error.
-5.  **Correct Command Arguments:** Ensure arguments for commands like `#copyweapon`, `#copyarmor`, `#copyitem`, and `#resist` are syntactically correct (e.g., no comments within arguments, correct number of arguments for `#resist`).
-6.  **Resolve Duplicates:** If the report indicates duplicate definitions, remove the redundant blocks, keeping only the first valid definition for each ID.
-7.  **Replace Placeholders:** Replace any placeholder `effect` IDs (like `10000`) with a valid and thematic effect or a series of appropriate effect commands.
-8.  **Correct Spell Restrictions:** Use `#nations <nation_id>` or `#restrictednation` for spells, not `#restricted`.
-9.  **No New Content:** Do NOT add new units, spells, or items that were not part of the original `generated_mod_code`. Only fix existing errors.
-
---- LAST VALIDATION REPORT START ---
-{last_validation_report}
---- LAST VALIDATION REPORT END ---
-
---- MOD COMMAND REFERENCE START ---
-{mod_commands_list}
---- MOD COMMAND REFERENCE END ---
-
---- WEAPON/ARMOR REFERENCE DATA START ---
-**Valid Vanilla Weapons (Sample):**
-{weapon_list}
-**Valid Vanilla Armors (Sample):**
-{armor_list}
---- WEAPON/ARMOR REFERENCE DATA END ---
-
---- FULL MOD EXAMPLE START ---
-{mod_example}
---- FULL MOD EXAMPLE END ---
-
-**Mod Code to Fix:**
-```dominions
-{generated_mod_code}
-```""",
-        'next_status': 'validation', # After fixing, go back to validation
-        'output_field': 'generated_mod_code', # Output of fixing is the corrected mod code
     },
 }
 
@@ -381,17 +340,14 @@ def run_generation_step_view(request, pk):
             output_field = step_config['output_field']
             
             if output_field == 'generated_mod_code':
-                # For initial generation steps, append. For fixing_errors, overwrite.
-                if current_status == 'fixing_errors':
-                    nation.generated_mod_code = response.text.strip()
+                # Always append for generation steps (no fixing_errors branch)
+                header = f"\\n\\n--//-- STEP: {current_status.upper()} --//--"
+                new_content = f"{header}\\n{response.text.strip()}"
+                
+                if nation.generated_mod_code is None or current_status == 'nation_details':
+                    nation.generated_mod_code = new_content
                 else:
-                    header = f"\\n\\n--//-- STEP: {current_status.upper()} --//--"
-                    new_content = f"{header}\\n{response.text.strip()}"
-                    
-                    if nation.generated_mod_code is None or current_status == 'nation_details':
-                        nation.generated_mod_code = new_content
-                    else:
-                        nation.generated_mod_code += new_content
+                    nation.generated_mod_code += new_content
                 
                 # After any code generation, clear the last validation report
                 nation.last_validation_report = None 
@@ -401,23 +357,22 @@ def run_generation_step_view(request, pk):
                 validation_output = response.text.strip()
                 nation.last_validation_report = validation_output
 
+                # Always set to 'completed' after validation, regardless of errors
+                nation.generation_status = 'completed' 
+                
+                # Clear report only if validation passed
                 if "Syntax validation passed." in validation_output:
-                    nation.generation_status = 'completed'
-                    nation.last_validation_report = None # Clear report on success
-                else:
-                    nation.generation_status = 'fixing_errors' # Errors found, go to fixing step
+                    nation.last_validation_report = None 
             else: # This handles 'expanded_description' for 'not_started'
                 # Check if the response text is empty or only whitespace
                 if not response.text.strip():
-                    nation.generation_status = 'failed'
+                    nation.generation_status = 'failed' # Only fail if AI returns empty content
                     nation.last_validation_report = "AI failed to generate expanded description. Response was empty or invalid."
                 else:
                     setattr(nation, output_field, response.text)
 
-            # Set next status for all non-validation/fixing steps, and only if not already failed
-            # This logic was slightly off; it should only advance if the current step is NOT validation/fixing_errors
-            # and the current step did NOT result in a 'failed' status.
-            if current_status not in ['validation', 'fixing_errors'] and nation.generation_status != 'failed':
+            # Set next status for all non-validation steps, and only if not already failed by empty response
+            if current_status != 'validation' and nation.generation_status != 'failed':
                 nation.generation_status = step_config['next_status']
             
             nation.save()
