@@ -15,6 +15,7 @@ GENERATION_STATUS_CHOICES = [
     ('spells', 'Step 6: National Spells'),
     ('items', 'Step 7: Weapons & Armor'),
     ('validation', 'Step 8: Final Validation'),
+    ('fixing_errors', 'Step 9: Applying Fixes'), # New status for self-correction
     ('completed', 'Completed'),
     ('failed', 'Failed'),
 ]
@@ -47,12 +48,19 @@ class Nation(models.Model):
         help_text="The current stage of the mod generation process."
     )
     
+    # New field to store the last validation report for self-correction
+    last_validation_report = models.TextField(
+        blank=True,
+        null=True,
+        help_text="The report from the last validation attempt, if errors were found."
+    )
+
     creator = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.name}"
 
     def get_absolute_url(self):
         """Returns the canonical URL for a nation instance."""
