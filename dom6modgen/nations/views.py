@@ -265,33 +265,33 @@ def run_generation_step_view(request, pk):
 
     if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
         step_config = GENERATION_WORKFLOW[current_status]
+        prompt_template = step_config['prompt_template'] # Get the prompt template for the current step
 
-        # --- MORE EFFICIENT DATABASE SAMPLING ---
-        # Instead of loading all records into memory, we order them randomly
-        # in the database and then slice the first N items.
-        
-        # Weapons Sample
-        weapon_queryset = GameEntity.objects.filter(entity_type='weapons').order_by('?').values_list('reference_text', flat=True)
-        weapon_data = "\\n".join(weapon_queryset[:50]) # Sample of 50
-
-        # Armor Sample
-        armor_queryset = GameEntity.objects.filter(entity_type='armors').order_by('?').values_list('reference_text', flat=True)
-        armor_data = "\\n".join(armor_queryset[:50]) # Sample of 50
-        
-        # Mod Commands Sample (still small enough to load all)
-        mod_commands_data = "\\n".join(
-            [f"#{cmd}" for cmd in GameEntity.objects.filter(entity_type='attribute_keys').values_list('name', flat=True)]
-        )
-        
-        # Mod Example
+        # Initialize all data variables to empty strings
+        weapon_data = ""
+        armor_data = ""
+        mod_commands_data = ""
         mod_example_text = ""
-        # Get a random example without loading all into memory
-        example_count = ModExample.objects.count()
-        if example_count > 0:
-            random_index = random.randint(0, example_count - 1)
-            mod_example_text = ModExample.objects.all()[random_index].mod_text
         
-        # --- End of Sampling Logic ---
+        # Conditionally load data based on what the current prompt_template requires
+        if "{mod_commands_list}" in prompt_template:
+            mod_commands_data = "\\n".join(
+                [f"#{cmd}" for cmd in GameEntity.objects.filter(entity_type='attribute_keys').values_list('name', flat=True)]
+            )
+
+        if "{weapon_list}" in prompt_template:
+            weapon_queryset = GameEntity.objects.filter(entity_type='weapons').order_by('?').values_list('reference_text', flat=True)
+            weapon_data = "\\n".join(weapon_queryset[:50]) # Sample of 50
+
+        if "{armor_list}" in prompt_template:
+            armor_queryset = GameEntity.objects.filter(entity_type='armors').order_by('?').values_list('reference_text', flat=True)
+            armor_data = "\\n".join(armor_queryset[:50]) # Sample of 50
+        
+        if "{mod_example}" in prompt_template:
+            example_count = ModExample.objects.count()
+            if example_count > 0:
+                random_index = random.randint(0, example_count - 1)
+                mod_example_text = ModExample.objects.all()[random_index].mod_text
         
         prompt_context = {
             "nation_description": nation.description or "",
@@ -302,7 +302,7 @@ def run_generation_step_view(request, pk):
             "mod_commands_list": mod_commands_data,
             "mod_example": mod_example_text,
         }
-        prompt = step_config['prompt_template'].format(**prompt_context)
+        prompt = prompt_template.format(**prompt_context) # Use the correct prompt_template
         
         try:
             api_key = os.environ.get("GEMINI_API_KEY")
