@@ -23,6 +23,18 @@
                 {% else %}
                     <p>No mod code has been generated yet. Start by expanding the nation concept.</p>
                 {% endif %}
+
+                {# NEW: Display Last Validation Report if available #}
+                {% if nation.last_validation_report %}
+                    <div class="card error-report"> {# You might want to define styles for .error-report in your style.css #}
+                        <div class="card-header">
+                            <h3>Last Validation Report</h3>
+                        </div>
+                        <div class="card-body">
+                            <pre>{{ nation.last_validation_report }}</pre>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
 
             <div class="workshop-sidebar">
@@ -31,12 +43,31 @@
                         <h3>Next Step</h3>
                     </div>
                     <div class="card-body">
-                        {% if is_completed %}
+                        {% if nation.generation_status == 'completed' %} {# Changed from is_completed to nation.generation_status for clarity #}
                             <p>Generation is complete!</p>
                             <a href="{% url 'nations:nation_detail' nation.pk %}" class="btn">Back to Details</a>
+                        {% elif nation.generation_status == 'failed' %}
+                            <p>An error occurred during generation. Please check server logs.</p>
+                            <a href="{% url 'nations:nation_detail' nation.pk %}" class="btn">Back to Details</a>
+                        {% elif nation.generation_status == 'fixing_errors' %} {# NEW: Logic for fixing errors #}
+                            <form id="generation-form" method="post" action="{% url 'nations:run_generation_step' nation.pk %}">
+                                {% csrf_token %}
+                                <h4>Applying Automated Fixes</h4>
+                                <button type="submit" class="btn btn-fix">Run Fixes</button> {# You might want to define .btn-fix in your style.css #}
+                            </form>
+                            <div id="loading-indicator" style="display: none; text-align: center;">
+                                <div class="spinner">
+                                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="50" cy="50" r="45" stroke-width="5" fill="none" stroke="#8B4513" stroke-linecap="round">
+                                            <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite" />
+                                            <animate attributeName="stroke-dasharray" values="1,200;89,200;89,200" dur="1.5s" repeatCount="indefinite" />
+                                        </circle>
+                                    </svg>
+                                </div>
+                                <p style="font-weight: bold; color: #4A2E1F; margin-top: 1rem;">The mages are weaving their spells...</p>
+                            </div>
                         {% elif next_action %}
-                            
-                            <!-- Generation Form -->
+                            <!-- Original Generation Form -->
                             <form id="generation-form" method="post" action="{% url 'nations:run_generation_step' nation.pk %}">
                                 {% csrf_token %}
                                 <h4>{{ next_action.action_name }}</h4>
@@ -55,7 +86,6 @@
                                 </div>
                                 <p style="font-weight: bold; color: #4A2E1F; margin-top: 1rem;">The mages are weaving their spells...</p>
                             </div>
-
                         {% else %}
                             <p>An error occurred or the process has ended.</p>
                         {% endif %}
@@ -97,4 +127,3 @@
     </script>
 </body>
 </html>
-
