@@ -346,7 +346,6 @@ def run_generation_step_view(request, pk):
             try:
                 mod_example_text = ModExample.objects.get(name=specific_example_name).mod_text
             except ModExample.DoesNotExist:
-                print(f"Warning: Specific mod example '{specific_example_name}' not found. Falling back to random example.")
                 example_count = ModExample.objects.count()
                 if example_count > 0:
                     random_index = random.randint(0, example_count - 1)
@@ -363,10 +362,10 @@ def run_generation_step_view(request, pk):
             "mod_example": mod_example_text,
         }
 
-        # Remove generated_mod_code from input if not in fixing_errors step
+        # Remove generated_mod_code and last_validation_report from input if not in fixing_errors step
         if current_status != 'fixing_errors':
-            prompt_context.pop("generated_mod_code")
-            prompt_context.pop("last_validation_report") # Also remove this if not fixing errors
+            prompt_context.pop("generated_mod_code", None) 
+            prompt_context.pop("last_validation_report", None) 
 
         prompt = prompt_template.format(**prompt_context)
         
@@ -406,16 +405,23 @@ def run_generation_step_view(request, pk):
                     nation.last_validation_report = None # Clear report on success
                 else:
                     nation.generation_status = 'fixing_errors' # Errors found, go to fixing step
-            else:
-                setattr(nation, output_field, response.text)
+            else: # This handles 'expanded_description' for 'not_started'
+                # Check if the response text is empty or only whitespace
+                if not response.text.strip():
+                    nation.generation_status = 'failed'
+                    nation.last_validation_report = "AI failed to generate expanded description. Response was empty or invalid."
+                else:
+                    setattr(nation, output_field, response.text)
 
+            # Set next status for all non-validation/fixing steps, and only if not already failed
+            if current_status != 'validation' and current_status != 'fixing_errors' and nation.generation_status != 'failed':
+                nation.generation_status = step_config['next_status']
+            
             nation.save()
 
         except Exception as e:
             nation.generation_status = 'failed'
-            print(f"Error during generation step '{current_status}': {e}")
-            nation.last_validation_report = f"An unexpected error occurred: {e}" # Store error for debugging
+            nation.last_validation_report = f"An unexpected error occurred during generation: {e}" # Store error for debugging
             nation.save()
 
     return redirect('nations:nation_workshop', pk=nation.pk)
-
