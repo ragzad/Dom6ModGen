@@ -74,6 +74,7 @@ Present this as a clear, well-organized document. This is a creative planning st
 1.  Your output MUST EXACTLY follow the syntax of a real Dominions 6 mod file.
 2.  Every `#selectnation` block MUST be closed with `#end`.
 3.  Do NOT include comments within command arguments (e.g., `#copyweapon 108` is correct, NOT `#copyweapon 108 -- comment`).
+4.  Only use commands relevant to nation definition. Do NOT include commands for units, spells, items, or obscure internal attributes like #costmult, #domsize, #base, etc.
 
 --- MOD COMMAND REFERENCE START ---
 {mod_commands_list}
@@ -289,8 +290,54 @@ def run_generation_step_view(request, pk):
         
         # Conditionally load data based on what the current prompt_template requires
         if "{mod_commands_list}" in prompt_template:
-            mod_commands_queryset = GameEntity.objects.filter(entity_type='attribute_keys').order_by('?').values_list('name', flat=True)
-            mod_commands_data = "\\n".join([f"#{cmd}" for cmd in mod_commands_queryset[:200]]) 
+            # Special handling for 'nation_details' step to provide a curated list of commands
+            if current_status == 'nation_details':
+                # Curated list of common nation-level commands
+                curated_nation_commands = [
+                    "selectnation", "name", "epithet", "era", "brief", "summary",
+                    "color", "flag", "templepic", "idealcold", "idealheat",
+                    "idealsorder", "idealdomination", "idealproductivity",
+                    "idealgrowth", "idealmisfortune", "idealmagic", "idealfortune",
+                    "idealdrain", "idealluck", "idealturmoil", "idealsloth",
+                    "idealdeath", "idealunrest", "idealfreshwater", "idealpollution",
+                    "spreadheat", "spreadcold", "spreaddeath", "spreadgrowth",
+                    "spreadmagic", "spreadfortune", "spreaddrain", "spreadluck",
+                    "spreadturmoil", "spreadsloth", "spreadmisfortune", "spreadorder",
+                    "nodeathsupply", "halfdeathinc", "halfdeathpop",
+                    "labcost", "templecost", "fortcost", "def", "researchbonus",
+                    "coastnation", "forestnation", "mountainnation", "swampnation",
+                    "wastelandnation", "underwaternation", "caveonly", "nounderwater",
+                    "recruitnodeathsupply", "recruitlevel", "homebase",
+                    "indisc", "army", "command", "fear", "stealthy", "cavalry",
+                    "flying", "firepower", "coldpower", "earthpower", "airpower",
+                    "waterpower", "astralpower", "deathpower", "naturepower",
+                    "undead", "demon", "god", "magical", "invulnerable", "poisonres",
+                    "diseaseres", "wastesurvival", "mountainsurvival", "forestsurvival",
+                    "snowsurvival", "desertsurvival", "underwatersurvival", "swampsurvival",
+                    "nomad", "hidden", "humanlike", "dragon", "giant", "indie",
+                    "mageladder", "barrackscost", "recruitment", "buildcost",
+                    "recruitmentcost", "provincetax", "recruitfromall",
+                    "recruitchancemult", "recruitfromanywhere", "recruitcap",
+                    "recruitmentcap", "militia", "basearmy", "baserecruit", "base",
+                    "basemil", "baseint", "basesam", "baseage", "basecommand",
+                    "basefear", "baseinspire", "basehp", "baseprot", "basemr",
+                    "basemor", "basestrtemp", "baseatt", "basedef", "baseprec",
+                    "baseap", "basemapmove", "baseenc", "baseweapon", "basearmor",
+                    "basefirepower", "basecoldpower", "baseearthpower", "baseairpower",
+                    "basewaterpower", "baseastralpower", "basedeathpower",
+                    "basenaturepower", "baseundead", "basedemon", "basegod",
+                    "basemagical", "baseinvulnerable", "basepoisonres",
+                    "basediseaseres", "basewastesurvival", "basemountainsurvival",
+                    "baseforestsurvival", "basesnowsurvival", "basedesertsurvival",
+                    "baseunderwatersurvival", "baseswampsurvival", "basenomad",
+                    "basehidden", "basehumanlike", "basedragon", "basegiant", "baseindie",
+                    "domsize", "domcost", # Keep these two as they are general dominion commands
+                ]
+                mod_commands_data = "\\n".join([f"#{cmd}" for cmd in curated_nation_commands])
+            else:
+                # For other steps, use the existing sampling logic for attribute_keys
+                mod_commands_queryset = GameEntity.objects.filter(entity_type='attribute_keys').order_by('?').values_list('name', flat=True)
+                mod_commands_data = "\\n".join([f"#{cmd}" for cmd in mod_commands_queryset[:200]]) 
 
         if "{weapon_list}" in prompt_template:
             weapon_queryset = GameEntity.objects.filter(entity_type='weapons').order_by('?').values_list('reference_text', flat=True)
@@ -360,7 +407,7 @@ def run_generation_step_view(request, pk):
                 # Always set to 'completed' after validation, regardless of errors
                 nation.generation_status = 'completed' 
                 
-                # Clear report only if validation passed
+                # Clear report only if validation passed (original phrase)
                 if "Syntax validation passed." in validation_output:
                     nation.last_validation_report = None 
             else: # This handles 'expanded_description' for 'not_started'
