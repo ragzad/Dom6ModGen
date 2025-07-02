@@ -351,21 +351,22 @@ def run_generation_step_view(request, pk):
                     random_index = random.randint(0, example_count - 1)
                     mod_example_text = ModExample.objects.all()[random_index].mod_text
         
+        # Build prompt_context conditionally based on what the *current* prompt_template needs
         prompt_context = {
             "nation_description": nation.description or "",
             "expanded_description": nation.expanded_description or "",
-            "generated_mod_code": nation.generated_mod_code or "", # Included for fixing_errors step
-            "last_validation_report": nation.last_validation_report or "", # New: for fixing_errors step
             "weapon_list": weapon_data,
             "armor_list": armor_data,
             "mod_commands_list": mod_commands_data,
             "mod_example": mod_example_text,
         }
 
-        # Remove generated_mod_code and last_validation_report from input if not in fixing_errors step
-        if current_status != 'fixing_errors':
-            prompt_context.pop("generated_mod_code", None) 
-            prompt_context.pop("last_validation_report", None) 
+        # Only add generated_mod_code and last_validation_report if the template explicitly asks for them
+        if "{generated_mod_code}" in prompt_template:
+            prompt_context["generated_mod_code"] = nation.generated_mod_code or ""
+        
+        if "{last_validation_report}" in prompt_template:
+            prompt_context["last_validation_report"] = nation.last_validation_report or ""
 
         prompt = prompt_template.format(**prompt_context)
         
@@ -414,7 +415,9 @@ def run_generation_step_view(request, pk):
                     setattr(nation, output_field, response.text)
 
             # Set next status for all non-validation/fixing steps, and only if not already failed
-            if current_status != 'validation' and current_status != 'fixing_errors' and nation.generation_status != 'failed':
+            # This logic was slightly off; it should only advance if the current step is NOT validation/fixing_errors
+            # and the current step did NOT result in a 'failed' status.
+            if current_status not in ['validation', 'fixing_errors'] and nation.generation_status != 'failed':
                 nation.generation_status = step_config['next_status']
             
             nation.save()
