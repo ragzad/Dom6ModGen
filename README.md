@@ -55,4 +55,4 @@ This satisfies the MS3 project requirement to:
 
 Here is a visual representation of the application's database schema:
 
-![Database Schema](Dom6ModGen/DBSchema/db_schema_manual.png)
+![Database Schema](DBSchema/db_schema_manual.png)
