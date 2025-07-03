@@ -51,11 +51,8 @@ This satisfies the MS3 project requirement to:
 
 ---
 
-## Database Schema (Sample)
+## Database Schema
 
-```plaintext
-User
- └── has many → Nation
-        ├── has many → Unit
-        ├── has many → Spell
-        └── has many → Item
+Here is a visual representation of the application's database schema:
+
+![Database Schema](Dom6ModGen\DB Schema)
