@@ -148,7 +148,6 @@ Extensive manual testing was conducted to rigorously assess the user-facing aspe
 | **Generation Workshop** (Initiate Step & Loading) | ![Generation Workshop](images/manual_test_workshop_loading.png)| ✅ Pass   |
 | **Overall Responsiveness** (Mobile View)          | ![Mobile Responsiveness](images/manual_test_mobile_view.png)  | ✅ Pass   |
 | **Cross-Browser Compatibility** (e.g., Opera)   | ![Cross-Browser Test](images/manual_test_Opera_view.png)    | ✅ Pass   |
-| **Broken Links & Console Errors** | ![No Console Errors](images/manual_test_no_errors.png)        | ✅ Pass   |
 | **W3C HTML TEST** | ![No Errors](images/manual_test_W3C_HTML.png)        | ✅ Pass   |
 | **W3C CSS TEST** | ![No Errors](images/manual_test_W3C_CSS.png)        | ✅ Pass   |
 
