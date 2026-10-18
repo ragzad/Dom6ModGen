@@ -1,9 +1,15 @@
 # dom6modgen/nations/tests.py
 
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from .models import Nation
 from django.contrib.auth import get_user_model
+
+# the manifest storage needs collectstatic to have run, which it hasn't in tests
+PLAIN_STATIC = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 
 class NationModelTest(TestCase):
     def setUp(self):
@@ -40,6 +46,7 @@ class NationModelTest(TestCase):
                 creator=self.user
             )
 
+@override_settings(STORAGES=PLAIN_STATIC)
 class NationViewTest(TestCase):
     def setUp(self):
         self.client = Client()
