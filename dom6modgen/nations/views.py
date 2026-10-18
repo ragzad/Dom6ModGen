@@ -333,19 +333,19 @@ def run_generation_step_view(request, pk):
                     "basehidden", "basehumanlike", "basedragon", "basegiant", "baseindie",
                     "domsize", "domcost", # Keep these two as they are general dominion commands
                 ]
-                mod_commands_data = "\\n".join([f"#{cmd}" for cmd in curated_nation_commands])
+                mod_commands_data = "\n".join([f"#{cmd}" for cmd in curated_nation_commands])
             else:
                 # For other steps, use the existing sampling logic for attribute_keys
                 mod_commands_queryset = GameEntity.objects.filter(entity_type='attribute_keys').order_by('?').values_list('name', flat=True)
-                mod_commands_data = "\\n".join([f"#{cmd}" for cmd in mod_commands_queryset[:200]]) 
+                mod_commands_data = "\n".join([f"#{cmd}" for cmd in mod_commands_queryset[:200]]) 
 
         if "{weapon_list}" in prompt_template:
             weapon_queryset = GameEntity.objects.filter(entity_type='weapons').order_by('?').values_list('reference_text', flat=True)
-            weapon_data = "\\n".join(weapon_queryset[:50]) 
+            weapon_data = "\n".join(weapon_queryset[:50]) 
 
         if "{armor_list}" in prompt_template:
             armor_queryset = GameEntity.objects.filter(entity_type='armors').order_by('?').values_list('reference_text', flat=True)
-            armor_data = "\\n".join(armor_queryset[:50]) 
+            armor_data = "\n".join(armor_queryset[:50]) 
         
         if "{mod_example}" in prompt_template:
             specific_example_name = "Comprehensive Mod Example" # Always use this one now
@@ -388,8 +388,8 @@ def run_generation_step_view(request, pk):
             
             if output_field == 'generated_mod_code':
                 # Always append for generation steps (no fixing_errors branch)
-                header = f"\\n\\n--//-- STEP: {current_status.upper()} --//--"
-                new_content = f"{header}\\n{response.text.strip()}"
+                header = f"\n\n--//-- STEP: {current_status.upper()} --//--"
+                new_content = f"{header}\n{response.text.strip()}"
                 
                 if nation.generated_mod_code is None or current_status == 'nation_details':
                     nation.generated_mod_code = new_content
