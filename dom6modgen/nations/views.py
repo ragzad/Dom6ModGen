@@ -2,15 +2,32 @@
 
 import os
 import random
+from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
+from django.views.decorators.http import require_POST
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from .models import Nation
 from .forms import NationForm
 from gamedata.models import GameEntity, ModExample
 import google.generativeai as genai
 
-# --- Class-Based Views (Unchanged) ---
+def can_edit(user, nation):
+    """Only the nation's creator (or staff) can change it or run generation."""
+    if not user.is_authenticated:
+        return False
+    return user.is_staff or nation.creator_id == user.id
+
+
+class OwnerRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    def test_func(self):
+        return can_edit(self.request.user, self.get_object())
+
+
 class NationListView(ListView):
     model = Nation
     template_name = 'nations/nation_list.html'
@@ -21,23 +38,43 @@ class NationDetailView(DetailView):
     template_name = 'nations/nation_detail.html'
     context_object_name = 'nation'
 
-class NationCreateView(CreateView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['can_edit'] = can_edit(self.request.user, self.object)
+        return context
+
+class NationCreateView(LoginRequiredMixin, CreateView):
     model = Nation
     form_class = NationForm
     template_name = 'nations/nation_form.html'
     success_url = reverse_lazy('nations:nation_list')
 
-class NationUpdateView(UpdateView):
+    def form_valid(self, form):
+        form.instance.creator = self.request.user
+        return super().form_valid(form)
+
+class NationUpdateView(OwnerRequiredMixin, UpdateView):
     model = Nation
     form_class = NationForm
     template_name = 'nations/nation_form.html'
     def get_success_url(self):
         return reverse('nations:nation_detail', kwargs={'pk': self.object.pk})
 
-class NationDeleteView(DeleteView):
+class NationDeleteView(OwnerRequiredMixin, DeleteView):
     model = Nation
     template_name = 'nations/nation_confirm_delete.html'
     success_url = reverse_lazy('nations:nation_list')
+
+
+def signup_view(request):
+    if request.user.is_authenticated:
+        return redirect('nations:nation_list')
+    form = UserCreationForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        user = form.save()
+        login(request, user)
+        return redirect('nations:nation_list')
+    return render(request, 'registration/signup.html', {'form': form})
 
 
 # --- Generation Logic & Workflow ---
@@ -269,16 +306,21 @@ def nation_workshop_view(request, pk):
     context = {
         'nation': nation,
         'next_action': next_action,
-        'is_completed': current_status == 'completed'
+        'is_completed': current_status == 'completed',
+        'can_edit': can_edit(request.user, nation),
     }
     return render(request, 'nations/nation_workshop.html', context)
 
 
+@login_required
+@require_POST
 def run_generation_step_view(request, pk):
     nation = get_object_or_404(Nation, pk=pk)
+    if not can_edit(request.user, nation):
+        raise PermissionDenied
     current_status = nation.generation_status
 
-    if request.method == 'POST' and current_status in GENERATION_WORKFLOW:
+    if current_status in GENERATION_WORKFLOW:
         step_config = GENERATION_WORKFLOW[current_status]
         prompt_template = step_config['prompt_template'] 
 

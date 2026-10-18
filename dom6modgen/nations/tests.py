@@ -1,5 +1,7 @@
 # dom6modgen/nations/tests.py
 
+from unittest import mock
+
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from .models import Nation
@@ -109,3 +111,76 @@ class NationViewTest(TestCase):
         response = self.client.post(reverse('nations:nation_delete', args=[self.nation.pk]))
         self.assertEqual(response.status_code, 302) # Should redirect
         self.assertFalse(Nation.objects.filter(pk=self.nation.pk).exists())
+
+@override_settings(STORAGES=PLAIN_STATIC)
+class NationPermissionTest(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.owner = User.objects.create_user(username='owner', password='testpassword')
+        self.other = User.objects.create_user(username='other', password='testpassword')
+        self.nation = Nation.objects.create(name='Owned Nation', description='Mine.', creator=self.owner)
+
+    def test_create_requires_login(self):
+        response = self.client.get(reverse('nations:nation_create'))
+        self.assertRedirects(response, f"{reverse('login')}?next={reverse('nations:nation_create')}")
+
+    def test_create_sets_creator(self):
+        self.client.login(username='other', password='testpassword')
+        self.client.post(reverse('nations:nation_create'), {'name': 'Fresh', 'description': 'New one.'})
+        self.assertEqual(Nation.objects.get(name='Fresh').creator, self.other)
+
+    def test_other_user_cannot_edit(self):
+        self.client.login(username='other', password='testpassword')
+        response = self.client.post(reverse('nations:nation_update', args=[self.nation.pk]), {
+            'name': 'Hijacked', 'description': 'Not yours.'
+        })
+        self.assertEqual(response.status_code, 403)
+        self.nation.refresh_from_db()
+        self.assertEqual(self.nation.name, 'Owned Nation')
+
+    def test_other_user_cannot_delete(self):
+        self.client.login(username='other', password='testpassword')
+        response = self.client.post(reverse('nations:nation_delete', args=[self.nation.pk]))
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Nation.objects.filter(pk=self.nation.pk).exists())
+
+    def test_anonymous_cannot_delete(self):
+        response = self.client.post(reverse('nations:nation_delete', args=[self.nation.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Nation.objects.filter(pk=self.nation.pk).exists())
+
+    def test_staff_can_edit(self):
+        get_user_model().objects.create_user(username='admin', password='testpassword', is_staff=True)
+        self.client.login(username='admin', password='testpassword')
+        response = self.client.post(reverse('nations:nation_update', args=[self.nation.pk]), {
+            'name': 'Fixed By Admin', 'description': 'Tidied up.'
+        })
+        self.assertEqual(response.status_code, 302)
+
+    def test_edit_buttons_hidden_from_other_users(self):
+        self.client.login(username='other', password='testpassword')
+        response = self.client.get(reverse('nations:nation_detail', args=[self.nation.pk]))
+        self.assertNotContains(response, 'Edit Nation')
+
+    @mock.patch('nations.views.genai')
+    def test_other_user_cannot_run_generation(self, mock_genai):
+        self.client.login(username='other', password='testpassword')
+        response = self.client.post(reverse('nations:run_generation_step', args=[self.nation.pk]))
+        self.assertEqual(response.status_code, 403)
+        mock_genai.GenerativeModel.assert_not_called()
+
+    def test_generation_requires_login(self):
+        response = self.client.post(reverse('nations:run_generation_step', args=[self.nation.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('login'), response.url)
+
+    @mock.patch.dict('os.environ', {'GEMINI_API_KEY': 'test-key'})
+    @mock.patch('nations.views.genai')
+    def test_owner_can_run_generation(self, mock_genai):
+        mock_genai.GenerativeModel.return_value.generate_content.return_value.text = 'An expanded concept.'
+        self.client.login(username='owner', password='testpassword')
+        response = self.client.post(reverse('nations:run_generation_step', args=[self.nation.pk]))
+        self.assertRedirects(response, reverse('nations:nation_workshop', args=[self.nation.pk]))
+        self.nation.refresh_from_db()
+        self.assertEqual(self.nation.expanded_description, 'An expanded concept.')
+        self.assertEqual(self.nation.generation_status, 'nation_details')

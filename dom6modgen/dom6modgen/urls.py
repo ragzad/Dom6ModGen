@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.urls import path, include
 # Importing RedirectView for the root redirect.
 from django.views.generic.base import RedirectView
+from nations.views import signup_view
 
 
 urlpatterns = [
@@ -14,6 +15,8 @@ urlpatterns = [
 
     # Standard path for the Django admin interface.
     path('admin/', admin.site.urls),
+    path('accounts/signup/', signup_view, name='signup'),
+    path('accounts/', include('django.contrib.auth.urls')),
     # Including URLs from the 'nations' app under the '/nations/' prefix.
     path('nations/', include('nations.urls')),
 

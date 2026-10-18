@@ -26,10 +26,11 @@
 
             <hr>
             
-            {# This section combines the clean layout with the new Workshop button #}
             <div class="form-actions">
-                <a href="{% url 'nations:nation_update' nation.pk %}" class="btn">Edit Nation</a>
-                <a href="{% url 'nations:nation_delete' nation.pk %}" class="btn">Delete Nation</a>
+                {% if can_edit %}
+                    <a href="{% url 'nations:nation_update' nation.pk %}" class="btn">Edit Nation</a>
+                    <a href="{% url 'nations:nation_delete' nation.pk %}" class="btn">Delete Nation</a>
+                {% endif %}
                 <a href="{% url 'nations:nation_workshop' nation.pk %}" class="btn">Open Generation Workshop</a>
             </div>
 

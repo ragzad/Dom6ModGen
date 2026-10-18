@@ -9,6 +9,18 @@
 </head>
 <body>
     <div class="container">
+        <p class="account-links">
+            {% if user.is_authenticated %}
+                Logged in as {{ user.username }}
+                <form method="post" action="{% url 'logout' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn">Log out</button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}">Log in</a> or <a href="{% url 'signup' %}">sign up</a> to create nations.
+            {% endif %}
+        </p>
+
         <h1>List of Nations</h1>
 
         {% if nations %}

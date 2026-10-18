@@ -54,6 +54,8 @@
                         {% elif nation.generation_status == 'failed' %}
                             <p>An unexpected error occurred during generation. Please review the report above or server logs for details.</p>
                             <a href="{% url 'nations:nation_detail' nation.pk %}" class="btn">Back to Details</a>
+                        {% elif next_action and not can_edit %}
+                            <p>Only the nation's creator can run the generation steps.</p>
                         {% elif next_action %}
                             <!-- Original Generation Form -->
                             <form id="generation-form" method="post" action="{% url 'nations:run_generation_step' nation.pk %}">
