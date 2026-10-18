@@ -77,9 +77,8 @@ if DATABASE_URL:
             ssl_require=config('DB_SSL_REQUIRE', default=True, cast=bool)
         )
     }
-else:
-    # Local development configuration (restored to original structure)
-    print("WARN: DATABASE_URL not found, falling back to local .env DB settings.")
+elif config('DB_NAME', default=''):
+    # local postgres set up through .env
     DATABASES = {
         'default': {
             'ENGINE': config('DB_ENGINE', default='django.db.backends.postgresql'),
@@ -88,6 +87,14 @@ else:
             'PASSWORD': config('DB_PASSWORD'),
             'HOST': config('DB_HOST', default='localhost'),
             'PORT': config('DB_PORT', default='5432', cast=int),
+        }
+    }
+else:
+    # nothing configured, just use sqlite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 
