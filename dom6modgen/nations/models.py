@@ -25,7 +25,7 @@ class Nation(models.Model):
     """
     Represents a moddable nation in Dominions 6.
     """
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
     description = models.TextField(help_text="A brief, high-level description or idea for the nation.")
     
     expanded_description = models.TextField(
